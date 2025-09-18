@@ -8,9 +8,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 class EditServiceScreen extends StatefulWidget {
-  final QueryDocumentSnapshot service;
-
-  const EditServiceScreen({super.key, required this.service});
+  final String serviceId;
+  const EditServiceScreen({super.key, required this.serviceId});
 
   @override
   State<EditServiceScreen> createState() => _EditServiceScreenState();
@@ -18,93 +17,120 @@ class EditServiceScreen extends StatefulWidget {
 
 class _EditServiceScreenState extends State<EditServiceScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  bool _isLoading = true;
+  bool _isUploading = false;
 
-  late final TextEditingController _serviceNameController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _basePriceController;
-  late final TextEditingController _locationController;
+  final _serviceNameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  // ▼▼▼▼▼ PRICE CONTROLLER REMOVED ▼▼▼▼▼
+  // final _priceController = TextEditingController();
+  // ▲▲▲▲▲ PRICE CONTROLLER REMOVED ▲▲▲▲▲
 
   String? _selectedCategory;
   File? _serviceImage;
+  String? _serviceImageName;
   String? _existingImageUrl;
-  bool? _isAvailable;
-  String? _status;
-
+  bool _isAvailable = true;
+  
   final List<String> _categories = [
-    'Home Services', 'IT Support', 'Beauty', 'Tutoring', 'Other'
+    'Electrical', 'Plumbing', 'Cleaning', 'Appliance Repair', 'Tutoring', 'Beauty & Wellness', 'Other'
   ];
 
   @override
   void initState() {
     super.initState();
-    final data = widget.service.data() as Map<String, dynamic>;
-    _serviceNameController = TextEditingController(text: data['serviceName']);
-    _descriptionController = TextEditingController(text: data['description']);
-    _basePriceController = TextEditingController(text: data['basePrice'].toString());
-    _locationController = TextEditingController(text: data['location']);
-    _selectedCategory = data['category'];
-    _isAvailable = data['isAvailable'];
-    _status = data['status'];
-    _existingImageUrl = data['serviceImageUrl'];
+    _loadServiceData();
   }
 
+  // Dispose controllers for better memory management
   @override
   void dispose() {
     _serviceNameController.dispose();
     _descriptionController.dispose();
-    _basePriceController.dispose();
-    _locationController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadServiceData() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('services').doc(widget.serviceId).get();
+      final data = doc.data();
+      if (data != null) {
+        _serviceNameController.text = data['serviceName'];
+        _descriptionController.text = data['description'];
+        // ▼▼▼▼▼ PRICE LOADING LOGIC REMOVED ▼▼▼▼▼
+        // _priceController.text = data['price'].toString();
+        // ▲▲▲▲▲ PRICE LOADING LOGIC REMOVED ▲▲▲▲▲
+        setState(() {
+          _selectedCategory = data['category'];
+          _isAvailable = data['isAvailable'];
+          _existingImageUrl = data['serviceImageUrl'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if(!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load service data: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (pickedFile != null) {
       setState(() {
         _serviceImage = File(pickedFile.path);
+        _serviceImageName = pickedFile.name;
       });
     }
   }
 
   Future<void> _updateService() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; });
+
+    setState(() => _isUploading = true);
 
     try {
       String imageUrl = _existingImageUrl!;
+      
       if (_serviceImage != null) {
-        final user = FirebaseAuth.instance.currentUser;
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('service_images')
-            .child('${user!.uid}_${DateTime.now().toIso8601String()}.jpg');
+        final user = FirebaseAuth.instance.currentUser!;
+        final fileName = '${user.uid}_${DateTime.now().millisecondsSinceEpoch}';
+        final storageRef = FirebaseStorage.instance.ref().child('service_images').child(fileName);
+
         await storageRef.putFile(_serviceImage!);
         imageUrl = await storageRef.getDownloadURL();
+
+        if (_existingImageUrl != null) {
+          await FirebaseStorage.instance.refFromURL(_existingImageUrl!).delete();
+        }
       }
 
-      await FirebaseFirestore.instance.collection('services').doc(widget.service.id).update({
+      await FirebaseFirestore.instance.collection('services').doc(widget.serviceId).update({
         'serviceName': _serviceNameController.text.trim(),
         'category': _selectedCategory,
         'description': _descriptionController.text.trim(),
-        'basePrice': double.tryParse(_basePriceController.text) ?? 0.0,
-        'isAvailable': _isAvailable,
-        'location': _locationController.text.trim(),
         'serviceImageUrl': imageUrl,
-        'status': _status,
+        'isAvailable': _isAvailable,
+        // ▼▼▼▼▼ PRICE UPDATE LOGIC REMOVED ▼▼▼▼▼
+        // 'price': double.tryParse(_priceController.text) ?? 0.0,
+        // ▲▲▲▲▲ PRICE UPDATE LOGIC REMOVED ▲▲▲▲▲
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Service updated successfully!'), backgroundColor: Colors.green),
       );
-      Navigator.pop(context);
+      Navigator.of(context).pop();
+
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update service: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('An error occurred: $e'), backgroundColor: Colors.red),
       );
-      setState(() { _isLoading = false; });
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -113,94 +139,75 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Service'),
-        backgroundColor: Colors.blueAccent,
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _serviceNameController,
-                decoration: const InputDecoration(labelText: 'Service Name', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'Please enter a service name' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                items: _categories.map((String category) {
-                  return DropdownMenuItem<String>(value: category, child: Text(category));
-                }).toList(),
-                onChanged: (newValue) => setState(() => _selectedCategory = newValue),
-                validator: (value) => value == null ? 'Please select a category' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Short Description', border: OutlineInputBorder()),
-                maxLines: 3,
-                validator: (value) => value!.isEmpty ? 'Please enter a description' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _basePriceController,
-                decoration: const InputDecoration(labelText: 'Base Price', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-                validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _locationController,
-                decoration: const InputDecoration(labelText: 'Service Location / City', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'Please enter a location' : null,
-              ),
-              const SizedBox(height: 24),
-              Text('Service Image', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: _pickImage,
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: _serviceImage != null
-                        ? Image.file(_serviceImage!, fit: BoxFit.cover)
-                        : Image.network(_existingImageUrl!, fit: BoxFit.cover),
-                  ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _serviceNameController,
+                      decoration: const InputDecoration(labelText: 'Service Name', border: OutlineInputBorder()),
+                      validator: (v) => v!.isEmpty ? 'Please enter a service name' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                      items: _categories.map((String category) {
+                        return DropdownMenuItem<String>(value: category, child: Text(category));
+                      }).toList(),
+                      onChanged: (newValue) => setState(() => _selectedCategory = newValue),
+                      validator: (v) => v == null ? 'Please select a category' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                      maxLines: 3,
+                      validator: (v) => v!.isEmpty ? 'Please enter a description' : null,
+                    ),
+                    
+                    // ▼▼▼▼▼ PRICE FORM FIELD REMOVED ▼▼▼▼▼
+                    // const SizedBox(height: 16),
+                    // TextFormField(
+                    //   controller: _priceController,
+                    //   ...
+                    // ),
+                    // ▲▲▲▲▲ PRICE FORM FIELD REMOVED ▲▲▲▲▲
+
+                    const SizedBox(height: 24),
+                    _serviceImage == null
+                        ? (_existingImageUrl != null ? Image.network(_existingImageUrl!) : Container())
+                        : Image.file(_serviceImage!),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.image_outlined),
+                      label: Text(_serviceImageName ?? 'Change Service Photo'),
+                      onPressed: _pickImage,
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      title: const Text('Available for booking'),
+                      value: _isAvailable,
+                      onChanged: (bool value) => setState(() => _isAvailable = value),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      onPressed: _isUploading ? null : _updateService,
+                      child: _isUploading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                          : const Text('Update Service'),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              SwitchListTile(
-                title: const Text('Available for booking'),
-                value: _isAvailable ?? true,
-                onChanged: (val) => setState(() => _isAvailable = val),
-              ),
-              SwitchListTile(
-                title: const Text('Publish Immediately'),
-                value: _status == 'published',
-                onChanged: (val) => setState(() => _status = val ? 'published' : 'draft'),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _updateService,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white))
-                    : const Text('Update Service'),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
