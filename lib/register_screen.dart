@@ -1,12 +1,8 @@
-// lib/register_screen.dart
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -18,7 +14,6 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final _usernameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
@@ -26,14 +21,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
-  File? _profileImage;
   String? _selectedRole;
-  final List<String> _roles = ["User", "Service Provider"];
+  final List<String> _roles = ["Customer", "Service Provider"];
 
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
+  // State for the verification step
   bool _verificationEmailSent = false;
+  Timer? _verificationTimer;
+  bool _isResendingEmail = false;
 
   @override
   void dispose() {
+    _verificationTimer?.cancel();
     _usernameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
@@ -42,23 +43,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() {
-        _profileImage = File(picked.path);
-      });
-    }
-  }
-
   Future<void> _registerAndSendVerificationEmail() async {
-    if (!_formKey.currentState!.validate()) {
+    // Also check if a role is selected
+    if (!_formKey.currentState!.validate() || _selectedRole == null) {
+      // Manually trigger validation to show role error message if needed
+      if (_selectedRole == null) setState(() {});
+      Fluttertoast.showToast(msg: "Please fill all required fields.");
       return;
     }
-    if (_profileImage == null) {
-      Fluttertoast.showToast(msg: "Please select a profile image.");
-      return;
-    }
+    
     setState(() => _isLoading = true);
 
     try {
@@ -75,8 +68,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _isLoading = false;
       });
 
+      // Start a timer to automatically check for verification
+      _verificationTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+        _checkEmailVerificationAndCompleteProfile(isAutoCheck: true);
+      });
+
       Fluttertoast.showToast(
-        msg: "Verification email sent! Please check your inbox. 📧",
+        msg: "Verification email sent! Please check your inbox.",
         backgroundColor: Colors.green,
       );
     } on FirebaseAuthException catch (e) {
@@ -88,53 +86,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       Fluttertoast.showToast(msg: errorMessage, backgroundColor: Colors.red);
       setState(() => _isLoading = false);
+    } catch (e) {
+      Fluttertoast.showToast(
+          msg: "An unknown error occurred: $e", backgroundColor: Colors.red);
+      setState(() => _isLoading = false);
     }
   }
 
-  // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-  // UPDATED METHOD: This now includes the correct approval status fields.
-  // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-  Future<void> _checkEmailVerificationAndCompleteProfile() async {
-    setState(() => _isLoading = true);
+  Future<void> _checkEmailVerificationAndCompleteProfile(
+      {bool isAutoCheck = false}) async {
+    if (!isAutoCheck && mounted) {
+      setState(() => _isLoading = true);
+    }
 
     await FirebaseAuth.instance.currentUser?.reload();
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null && user.emailVerified) {
+      _verificationTimer?.cancel();
+
+      // Ensure loading is true before saving profile to prevent button clicks
+      if (mounted) setState(() => _isLoading = true);
+
       try {
         final userId = user.uid;
-        final profileImageUrl = await _uploadProfileImage(userId);
 
         Map<String, dynamic> userData = {
           'username': _usernameController.text.trim(),
           'phone': _phoneController.text.trim(),
           'email': _emailController.text.trim(),
           'role': _selectedRole,
-          'profileImageUrl': profileImageUrl,
+          'profileImageUrl': null, // Profile image can be added later
           'createdAt': FieldValue.serverTimestamp(),
           'isEmailVerified': true,
         };
 
-        // Set the correct flags for the approval workflow
         if (_selectedRole == 'Service Provider') {
           userData.addAll({
-            'isProfileComplete': false, // Must complete profile after login
-            'isApproved': false,       // Admin must approve
-            'isRejected': false,       // Default rejection status
+            'isProfileComplete': false,
+            'isApproved': false,
+            'isRejected': false,
           });
         } else {
-          // Regular users are considered complete on registration
           userData['isProfileComplete'] = true;
         }
 
-        await FirebaseFirestore.instance.collection('users').doc(userId).set(userData);
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .set(userData);
 
-        String successMessage = _selectedRole == 'Service Provider'
-            ? "Registration complete! Please log in to finish your profile."
-            : "Email verified! Registration complete. Please log in.";
+        await FirebaseAuth.instance.signOut(); // Force user to log in again
 
         Fluttertoast.showToast(
-          msg: successMessage,
+          msg: "Email verified! Registration complete. Please log in.",
           backgroundColor: Colors.green,
           toastLength: Toast.LENGTH_LONG,
         );
@@ -147,59 +152,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } catch (e) {
         Fluttertoast.showToast(
-            msg: "Failed to save profile: $e", backgroundColor: Colors.red);
+          msg: "Error saving profile. Please contact support.",
+          backgroundColor: Colors.red,
+          toastLength: Toast.LENGTH_LONG,
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
-    } else {
+    } else if (!isAutoCheck) {
       Fluttertoast.showToast(
         msg: "Email not yet verified. Please click the link in your inbox.",
         backgroundColor: Colors.orange,
       );
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-    setState(() => _isLoading = false);
   }
 
-  Future<String?> _uploadProfileImage(String userId) async {
-    if (_profileImage == null) return null;
+  Future<void> _resendVerificationEmail() async {
+    if (_isResendingEmail) return;
+    setState(() => _isResendingEmail = true);
     try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_images')
-          .child('$userId.jpg');
-      await ref.putFile(_profileImage!);
-      return await ref.getDownloadURL();
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      Fluttertoast.showToast(
+        msg: "Verification email sent again.",
+        backgroundColor: Colors.green,
+      );
     } catch (e) {
-      Fluttertoast.showToast(msg: "Failed to upload profile image: $e");
-      return null;
+      Fluttertoast.showToast(
+        msg: "Failed to resend email: $e",
+        backgroundColor: Colors.red,
+      );
+    } finally {
+      // Add a small delay to prevent spamming
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        setState(() => _isResendingEmail = false);
+      }
     }
   }
   
-  // --- The rest of your UI code (build methods) remains the same ---
-  // (I've omitted it for brevity, just use your existing build methods)
-
   @override
   Widget build(BuildContext context) {
-    // ... your existing build method ...
-     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
-          child: Container(
-            width: 380,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5))
-              ],
-            ),
-            child: Form(
-              key: _formKey,
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.deepPurple, Colors.purple.shade300],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 500),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
                 child: _verificationEmailSent
                     ? _buildVerificationSentScreen()
                     : _buildRegistrationForm(),
@@ -212,193 +227,289 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildRegistrationForm() {
-    // ... your existing _buildRegistrationForm method ...
-      return Column(
+    return Container(
       key: const ValueKey('registrationForm'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        RichText(
-            text: const TextSpan(children: [
-          TextSpan(
-              text: "Serv",
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue)),
-          TextSpan(
-              text: "Sphere",
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black))
-        ])),
-        const SizedBox(height: 20),
-        Center(child: _buildProfileImagePicker()),
-        const SizedBox(height: 20),
-        _buildTextField(
-            label: "User Name *",
-            controller: _usernameController,
-            validator: (v) => v!.isEmpty ? "Enter username" : null),
-        const SizedBox(height: 10),
-        _buildTextField(
-            label: "Phone",
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            validator: (v) => null),
-        const SizedBox(height: 10),
-        _buildTextField(
-            label: "Email *",
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            validator: (v) =>
-                !(v!.contains('@')) ? "Enter a valid email" : null),
-        const SizedBox(height: 10),
-        _buildTextField(
-            label: "Password *",
-            controller: _passwordController,
-            obscureText: true,
-            validator: (v) => v!.length < 6
-                ? "Password must be at least 6 characters"
-                : null),
-        const SizedBox(height: 10),
-        _buildTextField(
-            label: "Confirm Password *",
-            controller: _confirmPasswordController,
-            obscureText: true,
-            validator: (v) =>
-                v != _passwordController.text ? "Passwords do not match" : null),
-        const SizedBox(height: 10),
-        _buildRoleDropdown(),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[800]),
-                  onPressed: _registerAndSendVerificationEmail,
-                  child: const Text("Verify Email & Continue"),
-                ),
+      padding: const EdgeInsets.all(24.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader("Create Account", "Get started by filling out the form below"),
+            const SizedBox(height: 24),
+            _buildRoleSelector(),
+            const SizedBox(height: 16),
+            _buildTextField(
+                controller: _usernameController,
+                label: "Full Name",
+                icon: Icons.person_outline,
+                validator: (v) => v!.isEmpty ? "Please enter your name" : null),
+            const SizedBox(height: 16),
+             _buildTextField(
+                controller: _phoneController,
+                label: "Phone Number",
+                icon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone),
+            const SizedBox(height: 16),
+            _buildTextField(
+                controller: _emailController,
+                label: "Email",
+                icon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) => !(v != null && v.contains('@')) ? "Enter a valid email" : null),
+            const SizedBox(height: 16),
+            _buildTextField(
+                controller: _passwordController,
+                label: "Password",
+                icon: Icons.lock_outline,
+                isPassword: true,
+                isPasswordVisible: _isPasswordVisible,
+                onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                validator: (v) => (v != null && v.length < 6) ? "Password must be at least 6 characters" : null),
+            const SizedBox(height: 16),
+            _buildTextField(
+                controller: _confirmPasswordController,
+                label: "Confirm Password",
+                icon: Icons.lock_outline,
+                isPassword: true,
+                isPasswordVisible: _isConfirmPasswordVisible,
+                onVisibilityToggle: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                validator: (v) => v != _passwordController.text ? "Passwords do not match" : null),
+            const SizedBox(height: 24),
+            _buildRegisterButton(),
+            const SizedBox(height: 24),
+            _buildLoginLink(),
+          ],
         ),
-        const SizedBox(height: 15),
-        _buildLoginLink(),
-      ],
-    );
-  }
-
-  Widget _buildVerificationSentScreen() {
-    // ... your existing _buildVerificationSentScreen method ...
-      return Column(
-      key: const ValueKey('verificationScreen'),
-      children: [
-        const Icon(Icons.email_outlined, color: Colors.green, size: 80),
-        const SizedBox(height: 20),
-        const Text("Check Your Email",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 15),
-        Text(
-          "We've sent a verification link to:\n${_emailController.text.trim()}",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[700], fontSize: 16),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          "Click the link to verify your account, then come back and press the button below.",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 30),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: _checkEmailVerificationAndCompleteProfile,
-                  child: const Text("I Have Verified, Complete Registration"),
-                ),
-        ),
-        const SizedBox(height: 15),
-        TextButton(
-          onPressed: () => setState(() => _verificationEmailSent = false),
-          child: const Text("Go Back & Change Email"),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileImagePicker() {
-    // ... your existing _buildProfileImagePicker method ...
-      return GestureDetector(
-      onTap: _pickImage,
-      child: CircleAvatar(
-        radius: 40,
-        backgroundColor: Colors.grey[300],
-        backgroundImage:
-            _profileImage != null ? FileImage(_profileImage!) : null,
-        child: _profileImage == null
-            ? const Icon(Icons.camera_alt, size: 30)
-            : null,
       ),
     );
   }
 
-  Widget _buildTextField(
-      {required String label,
-      required TextEditingController controller,
-      bool obscureText = false,
-      TextInputType keyboardType = TextInputType.text,
-      required String? Function(String?)? validator}) {
-    // ... your existing _buildTextField method ...
-       return TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-            labelText: label,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14)),
-        validator: validator);
-  }
-
-  Widget _buildRoleDropdown() {
-    // ... your existing _buildRoleDropdown method ...
-      return DropdownButtonFormField<String>(
-      initialValue: _selectedRole,
-      items: _roles
-          .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-          .toList(),
-      onChanged: (value) => setState(() => _selectedRole = value),
-      decoration: InputDecoration(
-          labelText: "Select Role *",
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          isDense: true),
-      validator: (value) => value == null ? "Please select a role" : null,
+  Widget _buildVerificationSentScreen() {
+    return Container(
+       key: const ValueKey('verificationScreen'),
+       padding: const EdgeInsets.all(24.0),
+       decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+         boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+       ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.mark_email_read_outlined, color: Colors.green, size: 80),
+          const SizedBox(height: 20),
+          const Text("Check Your Email", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 15),
+          Text(
+            "We've sent a verification link to:\n${_emailController.text.trim()}",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[700], fontSize: 16),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "Click the link, then return here. We're checking automatically.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isLoading ? null : () => _checkEmailVerificationAndCompleteProfile(),
+              child: _isLoading 
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3,))
+                : const Text("I Have Verified, Continue", style: TextStyle(fontSize: 16, color: Colors.white)),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () {
+                  _verificationTimer?.cancel();
+                  setState(() => _verificationEmailSent = false);
+                },
+                child: const Text("Change Email"),
+              ),
+              TextButton(
+                onPressed: _isResendingEmail ? null : _resendVerificationEmail,
+                child: _isResendingEmail ? const Text("Sending...") : const Text("Resend Link"),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
+  Widget _buildHeader(String title, String subtitle) {
+    return Column(
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(color: Colors.grey[600]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("I am a...", style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Row(
+          children: _roles.map((role) {
+            final bool isSelected = _selectedRole == role;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedRole = role),
+                child: Container(
+                  margin: EdgeInsets.only(right: role == _roles.first ? 8.0 : 0.0, left: role == _roles.last ? 8.0 : 0.0),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.deepPurple : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isSelected ? Colors.deepPurple : Colors.grey[300]!),
+                  ),
+                  child: Center(
+                    child: Text(
+                      role,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        // Simple validation feedback
+         if (_formKey.currentState?.validate() == false && _selectedRole == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 12.0),
+              child: Text("Please select a role", style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+            )
+      ],
+    );
+  }
+  
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    bool isPasswordVisible = false,
+    VoidCallback? onVisibilityToggle,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: isPassword && !isPasswordVisible,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        suffixIcon: isPassword
+          ? IconButton(
+              icon: Icon(isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+              onPressed: onVisibilityToggle,
+            )
+          : null,
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.deepPurple)),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+     return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _registerAndSendVerificationEmail,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.deepPurple,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
+              )
+            : const Text(
+                "Create Account",
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+      ),
+    );
+  }
+  
   Widget _buildLoginLink() {
-    // ... your existing _buildLoginLink method ...
-      return Row(
+     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text("Already have an account? "),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()));
+        const Text("Already have an account?"),
+        TextButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
           },
-          child: const Text("Login",
-              style:
-                  TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+          child: const Text("Sign In"),
         ),
       ],
     );
   }
 }
+
+
