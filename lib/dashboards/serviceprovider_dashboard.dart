@@ -1,42 +1,30 @@
 // lib/dashboards/serviceprovider_dashboard.dart
 
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // <-- Make sure this import is added
 import 'package:serviceprovider/login_screen.dart';
 import '../create_service_screen.dart';
 import '../manage_services_screen.dart';
 import '../service_provider_profile_screen.dart';
 
-// ▼▼▼▼▼ CONVERTED TO STATEFULWIDGET ▼▼▼▼▼
 class ServiceProviderDashboard extends StatefulWidget {
   const ServiceProviderDashboard({super.key});
 
   @override
-  State<ServiceProviderDashboard> createState() =>
-      _ServiceProviderDashboardState();
+  State<ServiceProviderDashboard> createState() => _ServiceProviderDashboardState();
 }
 
 class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
   int _selectedIndex = 0;
-
-  // ▼▼▼▼▼ NEW STATE VARIABLES ▼▼▼▼▼
   bool _isLoading = true;
   bool _isApproved = false;
   String _username = 'Service Provider';
-  // ▲▲▲▲▲ NEW STATE VARIABLES ▲▲▲▲▲
+  String? _profileImageUrl;
 
+  late final List<Widget> _pages;
 
-  final List<Map<String, dynamic>> _menuItems = [
-    { "title": "Create Services", "icon": FontAwesomeIcons.plusCircle, "color": Colors.blue, },
-    { "title": "Update Services", "icon": FontAwesomeIcons.penToSquare, "color": Colors.orange, },
-    { "title": "Service Request", "icon": FontAwesomeIcons.solidBell, "color": Colors.purple, },
-    { "title": "View Feedback", "icon": FontAwesomeIcons.solidCommentDots, "color": Colors.green, },
-    { "title": "My Profile", "icon": FontAwesomeIcons.userCircle, "color": Colors.teal, },
-  ];
-
-  // ▼▼▼▼▼ NEW: FETCH USER STATUS ON SCREEN LOAD ▼▼▼▼▼
   @override
   void initState() {
     super.initState();
@@ -46,7 +34,6 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
   Future<void> _checkApprovalStatus() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // If no user, stop loading and maybe log out
       if (mounted) setState(() => _isLoading = false);
       return;
     }
@@ -59,209 +46,533 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
           setState(() {
             _isApproved = data['isApproved'] ?? false;
             _username = data['username'] ?? 'Service Provider';
+            _profileImageUrl = data['profileImageUrl'];
             _isLoading = false;
+            _pages = [
+              _DashboardHomeTab(username: _username, profileImageUrl: _profileImageUrl),
+              const _ManageBookingsTab(), // This will now be the updated widget
+              const ServiceProviderProfileScreen(),
+            ];
           });
         }
       } else {
-        // Document doesn't exist, treat as not approved
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      // Handle potential errors
       print("Error checking approval status: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
-  // ▲▲▲▲▲ NEW: FETCH USER STATUS ON SCREEN LOAD ▲▲▲▲▲
 
-  void _onItemTapped(int index) async {
-    // ... (Your existing _onItemTapped method remains the same)
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 1) { // Logout is the second item (index 1)
-      await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-      );
-    }
+  void _onItemTapped(int index) {
+    setState(() => _selectedIndex = index);
   }
 
-  // ▼▼▼▼▼ NEW WIDGET FOR PENDING SCREEN ▼▼▼▼▼
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return _isApproved ? _buildApprovedDashboard() : _buildPendingScreen();
+  }
+
+  Widget _buildApprovedDashboard() {
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey[600],
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_rounded), label: 'Bookings'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPendingScreen() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(Icons.hourglass_top_rounded, size: 80, color: Colors.orangeAccent),
-            const SizedBox(height: 24),
-            const Text(
-              "Approval Pending",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.hourglass_top_rounded, size: 80, color: Colors.orangeAccent),
+                const SizedBox(height: 24),
+                const Text("Approval Pending", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                Text(
+                  "Welcome, $_username! Your account is under review by the admin. We'll notify you upon approval.",
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+                TextButton.icon(
+                  icon: const Icon(Icons.logout),
+                  label: const Text("Logout"),
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                    if (!mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                  },
+                )
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              "Welcome, $_username! Your account is under review. You will be notified once the admin approves your request. Please check back later.",
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-              textAlign: TextAlign.center,
-            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- DASHBOARD HOME TAB WIDGET (Unchanged) ---
+class _DashboardHomeTab extends StatelessWidget {
+  final String username;
+  final String? profileImageUrl;
+
+  const _DashboardHomeTab({required this.username, this.profileImageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      body: SafeArea(
+        top: false,
+        child: CustomScrollView(
+          slivers: [
+            _buildCurvedHeader(context),
+            _buildSectionTitle("At a Glance"),
+            _buildKpiGrid(),
+            _buildActionRequiredCard(context),
+            _buildSectionTitle("Manage Business"),
+            _buildQuickActionsGrid(context),
           ],
         ),
       ),
     );
   }
-  // ▲▲▲▲▲ NEW WIDGET FOR PENDING SCREEN ▲▲▲▲▲
-
-  // ▼▼▼▼▼ NEW WIDGET FOR MAIN DASHBOARD CONTENT ▼▼▼▼▼
-  Widget _buildDashboardGrid() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFF3F9FF), Color(0xFFE3EEFF)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const BouncingScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1,
-        ),
-        itemCount: _menuItems.length,
-        itemBuilder: (context, index) {
-          final item = _menuItems[index];
-          final color = (item['color'] as Color);
-          final icon = item['icon'] as IconData;
-          final title = (item['title'] ?? '').toString();
-
-          return GestureDetector(
-            onTap: () {
-              if (title == "Create Services") {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const CreateServiceScreen()),
-                );
-                return;
-              }
-
-              if (title == "Update Services") {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const ManageServicesScreen()),
-                );
-                return;
-              }
-
-              if (title == "My Profile") {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ServiceProviderProfileScreen(),
-                  ),
-                );
-                return;
-              }
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$title tapped (TODO)')),
-              );
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color.withOpacity(0.15), Colors.white],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(3, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: color.withOpacity(0.15),
-                    child: Icon(icon, size: 30, color: color),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+  
+  Widget _buildCurvedHeader(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: ClipPath(
+        clipper: _AppBarClipper(),
+        child: Container(
+          height: 220,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple, Colors.purple.shade400],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          );
-        },
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.1,
+                  child: Image.asset('assets/header_pattern.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const SizedBox()),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  left: 24,
+                  right: 24,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("Welcome back,", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 18)),
+                          Text(
+                            username,
+                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    CircleAvatar(
+                      radius: 35,
+                      backgroundColor: Colors.white.withOpacity(0.3),
+                      backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl!) : null,
+                      child: profileImageUrl == null ? const Icon(Icons.person, size: 35, color: Colors.white) : null,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
-  // ▲▲▲▲▲ NEW WIDGET FOR MAIN DASHBOARD CONTENT ▲▲▲▲▲
+
+  Widget _buildSectionTitle(String title) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
+        child: Text(
+          title,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildKpiGrid() {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      sliver: SliverGrid.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.5,
+        children: [
+          _InfoCard(title: 'Completed Jobs', value: '156', icon: Icons.check_circle, color: Colors.green),
+          _InfoCard(title: 'Your Rating', value: '4.8 ★', icon: Icons.star, color: Colors.amber),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredCard(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Container(
+          decoration: BoxDecoration(
+             gradient: LinearGradient(
+              colors: [Colors.orange.shade600, Colors.orange.shade400],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]
+          ),
+          child: ListTile(
+            leading: const Icon(Icons.notifications_active, color: Colors.white, size: 30),
+            title: const Text("3 New Requests", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+            subtitle: Text("Respond now to improve your rating", style: TextStyle(color: Colors.white.withOpacity(0.9))),
+            trailing: const Icon(Icons.arrow_forward, color: Colors.white),
+            onTap: () {
+                // This is a placeholder, a better implementation would use a callback to change the main index
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Navigating to bookings...")));
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsGrid(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.all(16.0),
+      sliver: SliverGrid.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.1,
+        children: [
+          _ActionCard(
+            title: "Add New Service",
+            icon: Icons.add_circle,
+            color: Colors.blue,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateServiceScreen())),
+          ),
+          _ActionCard(
+            title: "Manage My Services",
+            icon: Icons.edit_note,
+            color: Colors.teal,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageServicesScreen())),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- ▼▼▼ BOOKINGS TAB WIDGET (FULLY UPDATED) ▼▼▼ ---
+class _ManageBookingsTab extends StatefulWidget {
+  const _ManageBookingsTab();
+
+  @override
+  State<_ManageBookingsTab> createState() => _ManageBookingsTabState();
+}
+
+class _ManageBookingsTabState extends State<_ManageBookingsTab>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Provider Dashboard"), // Changed title for clarity
-        centerTitle: true,
-        backgroundColor: Colors.blueAccent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
+        title: const Text('Manage Bookings'),
+        backgroundColor: Colors.deepPurple,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Pending'),
+            Tab(text: 'Accepted'),
+            Tab(text: 'Completed'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _BookingList(status: 'pending'),
+          _BookingList(status: 'accepted'),
+          _BookingList(status: 'completed'),
         ],
       ),
-      // ▼▼▼▼▼ CONDITIONAL BODY BASED ON STATUS ▼▼▼▼▼
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _isApproved
-              ? _buildDashboardGrid()
-              : _buildPendingScreen(),
-      // ▲▲▲▲▲ CONDITIONAL BODY BASED ON STATUS ▲▲▲▲▲
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: "Home",
+    );
+  }
+}
+
+// --- REUSABLE WIDGET TO DISPLAY BOOKING LISTS ---
+class _BookingList extends StatelessWidget {
+  final String status;
+
+  const _BookingList({required this.status});
+
+  Future<void> _updateRequestStatus(String docId, String newStatus) async {
+    await FirebaseFirestore.instance
+        .collection('serviceRequests')
+        .doc(docId)
+        .update({'status': newStatus});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser!;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('serviceRequests')
+          .where('providerId', isEqualTo: user.uid)
+          .where('status', isEqualTo: status)
+          .orderBy('scheduledDateTime', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(child: Text('An error occurred.'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(child: Text('No $status requests found.'));
+        }
+
+        return ListView.builder(
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            return _buildBookingCard(context, doc.id, data);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBookingCard(
+      BuildContext context, String docId, Map<String, dynamic> data) {
+    final scheduledDate = (data['scheduledDateTime'] as Timestamp).toDate();
+    final formattedDate = DateFormat.yMMMd().add_jm().format(scheduledDate);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(data['serviceName'] ?? 'No Service Name',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 8),
+            _InfoRow(
+                icon: Icons.person_outline, text: 'Customer: ${data['customerName']}'),
+            const SizedBox(height: 4),
+            _InfoRow(icon: Icons.calendar_today_outlined, text: formattedDate),
+            const SizedBox(height: 12),
+            _buildActionButtons(docId),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(String docId) {
+    if (status == 'pending') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => _updateRequestStatus(docId, 'rejected'),
+            child: const Text('Reject', style: TextStyle(color: Colors.red)),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.logout),
-            label: "Logout",
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => _updateRequestStatus(docId, 'accepted'),
+            child: const Text('Accept'),
+          ),
+        ],
+      );
+    } else if (status == 'accepted') {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.check_circle_outline, size: 18),
+          label: const Text('Mark as Complete'),
+          onPressed: () => _updateRequestStatus(docId, 'completed'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+        ),
+      );
+    } else {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Icon(
+          Icons.check_circle,
+          color: Colors.green,
+        ),
+      );
+    }
+  }
+}
+
+// Helper widget for info rows
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _InfoRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[700]),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+      ],
+    );
+  }
+}
+// --- ▲▲▲ BOOKINGS TAB WIDGET (FULLY UPDATED) ▲▲▲ ---
+
+
+// --- REUSABLE UI WIDGETS (Unchanged) ---
+class _InfoCard extends StatelessWidget {
+  final String title, value;
+  final IconData icon;
+  final Color color;
+  const _InfoCard({required this.title, required this.value, required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 36, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14), overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _ActionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionCard({required this.title, required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(radius: 30, backgroundColor: color.withOpacity(0.1), child: Icon(icon, size: 30, color: color)),
+            const SizedBox(height: 16),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, height: 1.2)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- CUSTOM CLIPPER (Unchanged) ---
+class _AppBarClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - 50);
+    path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 50);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

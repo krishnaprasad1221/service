@@ -19,6 +19,7 @@
         "geolocator",
         "google_sign_in",
         "image_picker",
+        "intl",
         "url_launcher"
       ],
       "devDependencies": [
@@ -78,7 +79,7 @@
     },
     {
       "name": "google_sign_in",
-      "version": "7.1.1",
+      "version": "7.2.0",
       "dependencies": [
         "flutter",
         "google_sign_in_android",
@@ -145,7 +146,7 @@
     },
     {
       "name": "fluttertoast",
-      "version": "8.2.12",
+      "version": "8.2.13",
       "dependencies": [
         "flutter",
         "flutter_web_plugins",
@@ -172,6 +173,15 @@
         "geolocator_platform_interface",
         "geolocator_web",
         "geolocator_windows"
+      ]
+    },
+    {
+      "name": "intl",
+      "version": "0.19.0",
+      "dependencies": [
+        "clock",
+        "meta",
+        "path"
       ]
     },
     {
@@ -379,7 +389,7 @@
     },
     {
       "name": "google_sign_in_web",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": [
         "flutter",
         "flutter_web_plugins",
@@ -399,7 +409,7 @@
     },
     {
       "name": "google_sign_in_ios",
-      "version": "6.1.0",
+      "version": "6.2.0",
       "dependencies": [
         "flutter",
         "google_sign_in_platform_interface"
@@ -407,7 +417,7 @@
     },
     {
       "name": "google_sign_in_android",
-      "version": "7.0.5",
+      "version": "7.1.0",
       "dependencies": [
         "flutter",
         "google_sign_in_platform_interface"
