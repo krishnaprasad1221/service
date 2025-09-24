@@ -39,6 +39,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
 
+    // Basic validation
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both email and password.')),
+      );
+      setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       final userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
@@ -57,13 +66,20 @@ class _LoginScreenState extends State<LoginScreen> {
       final userRole = userData['role'];
       Widget? nextScreen;
 
+<<<<<<< HEAD
       // ▼▼▼ THIS IS THE FIX ▼▼▼
       // Ensure the 'case' exactly matches the value saved in Firestore ("Customer")
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
       switch (userRole) {
         case "Admin":
           nextScreen = const AdminDashboard();
           break;
+<<<<<<< HEAD
         case "Customer": // This must match the role saved during registration
+=======
+        case "User":
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
           nextScreen = const UserDashboard();
           break;
         case "Service Provider":
@@ -81,7 +97,11 @@ class _LoginScreenState extends State<LoginScreen> {
             );
             await FirebaseAuth.instance.signOut();
           } else if (!isProfileComplete) {
+<<<<<<< HEAD
             nextScreen = const EditProfileScreen();
+=======
+            nextScreen = const EditProfileScreen(isCompletingProfile: true);
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
           } else if (!isApproved) {
              ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -89,6 +109,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 backgroundColor: Colors.orange,
               ),
             );
+<<<<<<< HEAD
+=======
+            // Don't sign out, let them see the pending screen in their dashboard
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
             nextScreen = const ServiceProviderDashboard();
           } else {
             nextScreen = const ServiceProviderDashboard();
@@ -129,9 +153,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+<<<<<<< HEAD
   // ... rest of the code remains the same
   // (dispose, _showResetPasswordDialog, _resetPassword, build, etc.)
 
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   void _showResetPasswordDialog() {
     final emailForResetController = TextEditingController();
     showDialog(
@@ -271,6 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
           )
         ],
       ),
+<<<<<<< HEAD
       child: Form(
         key: _formKey,
         child: Column(
@@ -388,3 +416,102 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+=======
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: "Email",
+              prefixIcon: const Icon(Icons.email_outlined),
+              filled: true,
+              fillColor: Colors.grey[100],
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _passwordController,
+            obscureText: !_isPasswordVisible,
+            decoration: InputDecoration(
+              labelText: "Password",
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isPasswordVisible
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
+              filled: true,
+              fillColor: Colors.grey[100],
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _showResetPasswordDialog,
+              child: const Text("Forgot Password?"),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _login,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
+                    )
+                  : const Text(
+                      "Sign In",
+                      style: TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Don't have an account?"),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  );
+                },
+                child: const Text("Sign up"),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac

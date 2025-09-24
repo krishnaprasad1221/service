@@ -47,9 +47,15 @@ class AuthWrapper extends StatelessWidget {
                 } else if (userRole == 'Service Provider') {
                     // This logic is from your login screen, ensuring consistency
                     final isProfileComplete = userData['isProfileComplete'] ?? false;
+<<<<<<< HEAD
                     if (!isProfileComplete){
                       return const EditProfileScreen(isCompletingProfile: true);
                     } 
+=======
+                    if (!isProfileComplete) {
+                        return const EditProfileScreen(isCompletingProfile: true);
+                    }
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
                     return const ServiceProviderDashboard();
                 }
               }

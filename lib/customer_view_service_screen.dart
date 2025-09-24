@@ -2,12 +2,21 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+<<<<<<< HEAD
 import 'package:serviceprovider/booking_confirmation_screen.dart'; // <-- IMPORT the new screen
 
+=======
+
+// ▼▼▼ RENAMED this class ▼▼▼
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 class CustomerViewServiceScreen extends StatelessWidget {
   final String serviceId;
 
   const CustomerViewServiceScreen({super.key, required this.serviceId});
+<<<<<<< HEAD
+=======
+  // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
   @override
   Widget build(BuildContext context) {
@@ -69,12 +78,16 @@ class CustomerViewServiceScreen extends StatelessWidget {
                   _buildSectionTitle("Provided By"),
                   _buildProviderInfoCard(providerId),
                   const SizedBox(height: 30),
+<<<<<<< HEAD
                   _buildBookNowButton(
                     context: context,
                     serviceId: serviceId,
                     providerId: providerId,
                     serviceName: serviceName,
                   ),
+=======
+                  _buildBookNowButton(),
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
                   const SizedBox(height: 30),
                 ]),
               ),
@@ -136,6 +149,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
     );
   }
 
+<<<<<<< HEAD
   // ▼▼▼ THIS WIDGET IS NOW UPDATED ▼▼▼
   Widget _buildBookNowButton({
     required BuildContext context,
@@ -143,6 +157,9 @@ class CustomerViewServiceScreen extends StatelessWidget {
     required String providerId,
     required String serviceName,
   }) {
+=======
+  Widget _buildBookNowButton() {
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: ElevatedButton(
@@ -153,6 +170,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         onPressed: () {
+<<<<<<< HEAD
           // Navigate to the new screen, passing the required data
           Navigator.push(
             context,
@@ -164,6 +182,9 @@ class CustomerViewServiceScreen extends StatelessWidget {
               ),
             ),
           );
+=======
+          // TODO: Implement booking logic
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
         },
         child: const Text("Book This Service", style: TextStyle(fontSize: 18)),
       ),

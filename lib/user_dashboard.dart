@@ -8,7 +8,11 @@ import 'package:serviceprovider/profile_screen.dart';
 import 'package:serviceprovider/view_services_screen.dart';
 import 'package:serviceprovider/my_requests_screen.dart';
 import 'package:serviceprovider/payment_history_screen.dart';
+<<<<<<< HEAD
 import 'package:serviceprovider/service_search_screen.dart';
+=======
+import 'package:serviceprovider/service_search_screen.dart'; // <-- 1. IMPORT ADDED
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({super.key});
@@ -20,8 +24,11 @@ class UserDashboard extends StatefulWidget {
 class _UserDashboardState extends State<UserDashboard> {
   int _selectedIndex = 0;
   String _username = 'User';
+<<<<<<< HEAD
   // NEW: State variable to hold the profile image URL
   String? _profileImageUrl;
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   bool _isLoading = true;
 
   late final List<Widget> _pages;
@@ -32,7 +39,10 @@ class _UserDashboardState extends State<UserDashboard> {
     _fetchUserData();
   }
 
+<<<<<<< HEAD
   // MODIFIED: This function now also fetches the profileImageUrl
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -46,12 +56,19 @@ class _UserDashboardState extends State<UserDashboard> {
       if (doc.exists && doc.data() != null && mounted) {
         setState(() {
           _username = doc.data()!['username'] ?? 'User';
+<<<<<<< HEAD
           // NEW: Get the profile image URL from the document data
           _profileImageUrl = doc.data()!['profileImageUrl'];
         });
       }
     } catch (e) {
       print("Error fetching user data: $e");
+=======
+        });
+      }
+    } catch (e) {
+      print("Error fetching username: $e");
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
     } finally {
       _pages = [
         _buildHomeContent(),
@@ -126,7 +143,10 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
+<<<<<<< HEAD
   // MODIFIED: This widget now displays the profile photo
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Widget _buildHeader() {
     return SliverAppBar(
       expandedHeight: 220.0,
@@ -158,6 +178,7 @@ class _UserDashboardState extends State<UserDashboard> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+<<<<<<< HEAD
                 // NEW: Row to hold the text and the profile photo
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -196,6 +217,20 @@ class _UserDashboardState extends State<UserDashboard> {
                           : null,
                     ),
                   ],
+=======
+                Text(
+                  "Hello, $_username!",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Find the best services near you",
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
                 ),
                 const SizedBox(height: 20),
                 _buildSearchBar(),
@@ -207,9 +242,17 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
   
+<<<<<<< HEAD
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () {
+=======
+  // ▼▼▼ 2. THIS WIDGET IS NOW UPDATED ▼▼▼
+  Widget _buildSearchBar() {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to the new search screen
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ServiceSearchScreen()),
@@ -234,6 +277,10 @@ class _UserDashboardState extends State<UserDashboard> {
       ),
     );
   }
+<<<<<<< HEAD
+=======
+  // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
   Widget _buildSectionTitle(String title) {
     return SliverToBoxAdapter(

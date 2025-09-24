@@ -1,10 +1,17 @@
+<<<<<<< HEAD
 // lib/profile_screen.dart
 
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:serviceprovider/login_screen.dart';
+<<<<<<< HEAD
 import 'user_edit_profile.dart'; 
+=======
+import 'edit_profile_screen.dart'; // Make sure this screen exists for users
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +21,10 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+<<<<<<< HEAD
+=======
+  // Using a Stream to listen for real-time profile updates.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Stream<DocumentSnapshot>? _profileStream;
 
   @override
@@ -22,6 +33,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _initializeProfileStream();
   }
 
+<<<<<<< HEAD
+=======
+  /// Initializes the stream to listen for real-time changes to the user's profile.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   void _initializeProfileStream() {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -34,10 +49,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+<<<<<<< HEAD
   Future<void> _refreshProfile() async {
     _initializeProfileStream();
   }
 
+=======
+  /// Refreshes the profile data.
+  Future<void> _refreshProfile() async {
+    // This will re-trigger the StreamBuilder by re-assigning the stream
+    _initializeProfileStream();
+  }
+
+  /// Securely signs the user out and navigates to the LoginScreen.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -47,6 +72,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+  /// Shows a confirmation dialog to prevent accidental logouts.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Future<void> _showLogoutConfirmationDialog() async {
     showDialog(
       context: context,
@@ -97,8 +126,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final String username = profile['username'] ?? 'Guest User';
           final String phone = profile['phone'] ?? 'Not Provided';
           final String email = profile['email'] ?? 'Not Provided';
+<<<<<<< HEAD
           // ▼▼▼ ADDED: Fetch the address from the profile data ▼▼▼
           final String address = profile['address'] ?? 'No address provided';
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
           final String? profileImageUrl = profile['profileImageUrl'];
 
           return RefreshIndicator(
@@ -118,11 +150,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.phone_outlined,
                         title: "Phone Number",
                         value: phone),
+<<<<<<< HEAD
                     // ▼▼▼ ADDED: A new tile to display the user's address ▼▼▼
                     _InfoTile(
                         icon: Icons.location_on_outlined,
                         title: "Address",
                         value: address),
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
                     const SizedBox(height: 30),
                     _buildActionButtons(context),
                     const SizedBox(height: 40),
@@ -136,6 +171,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+  /// Builds the main action buttons for the profile screen.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
   Widget _buildActionButtons(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -154,9 +193,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               elevation: 4,
             ),
             onPressed: () {
+<<<<<<< HEAD
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const UserEditProfileScreen()),
+=======
+               Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
               );
             },
           ),
@@ -179,8 +224,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+<<<<<<< HEAD
 // _ProfileHeader and _InfoTile widgets remain the same...
 
+=======
+/// A visually appealing header for the profile screen.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 class _ProfileHeader extends StatelessWidget {
   final String username;
   final String? profileImageUrl;
@@ -237,6 +286,10 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
+<<<<<<< HEAD
+=======
+/// A reusable widget for displaying profile information in a clean, card-based format.
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -263,4 +316,8 @@ class _InfoTile extends StatelessWidget {
       ),
     );
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac

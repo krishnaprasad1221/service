@@ -3,7 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+<<<<<<< HEAD
 import 'package:intl/intl.dart'; // <-- Make sure this import is added
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 import 'package:serviceprovider/login_screen.dart';
 import '../create_service_screen.dart';
 import '../manage_services_screen.dart';
@@ -50,7 +53,11 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
             _isLoading = false;
             _pages = [
               _DashboardHomeTab(username: _username, profileImageUrl: _profileImageUrl),
+<<<<<<< HEAD
               const _ManageBookingsTab(), // This will now be the updated widget
+=======
+              const _ManageBookingsTab(),
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
               const ServiceProviderProfileScreen(),
             ];
           });
@@ -136,7 +143,11 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
   }
 }
 
+<<<<<<< HEAD
 // --- DASHBOARD HOME TAB WIDGET (Unchanged) ---
+=======
+// --- DASHBOARD HOME TAB WIDGET ---
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 class _DashboardHomeTab extends StatelessWidget {
   final String username;
   final String? profileImageUrl;
@@ -179,10 +190,18 @@ class _DashboardHomeTab extends StatelessWidget {
           ),
           child: Stack(
             children: [
+<<<<<<< HEAD
               Positioned.fill(
                 child: Opacity(
                   opacity: 0.1,
                   child: Image.asset('assets/header_pattern.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const SizedBox()),
+=======
+              // Subtle background pattern
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.1,
+                  child: Image.asset('assets/header_pattern.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const SizedBox()), // Add a pattern image to your assets
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
                 ),
               ),
               Padding(
@@ -223,6 +242,7 @@ class _DashboardHomeTab extends StatelessWidget {
       ),
     );
   }
+<<<<<<< HEAD
 
   Widget _buildSectionTitle(String title) {
     return SliverToBoxAdapter(
@@ -331,10 +351,100 @@ class _ManageBookingsTabState extends State<_ManageBookingsTab>
     _tabController.dispose();
     super.dispose();
   }
+=======
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
+  Widget _buildSectionTitle(String title) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
+        child: Text(
+          title,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildKpiGrid() {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      sliver: SliverGrid.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.5,
+        children: [
+          _InfoCard(title: 'Completed Jobs', value: '156', icon: Icons.check_circle, color: Colors.green),
+          _InfoCard(title: 'Your Rating', value: '4.8 ★', icon: Icons.star, color: Colors.amber),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredCard(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Container(
+          decoration: BoxDecoration(
+             gradient: LinearGradient(
+              colors: [Colors.orange.shade600, Colors.orange.shade400],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]
+          ),
+          child: ListTile(
+            leading: const Icon(Icons.notifications_active, color: Colors.white, size: 30),
+            title: const Text("3 New Requests", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+            subtitle: Text("Respond now to improve your rating", style: TextStyle(color: Colors.white.withOpacity(0.9))),
+            trailing: const Icon(Icons.arrow_forward, color: Colors.white),
+            onTap: () {
+                // This should ideally set the bottom nav index to 1
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Navigating to bookings...")));
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsGrid(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.all(16.0),
+      sliver: SliverGrid.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.1,
+        children: [
+          _ActionCard(
+            title: "Add New Service",
+            icon: Icons.add_circle,
+            color: Colors.blue,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateServiceScreen())),
+          ),
+          _ActionCard(
+            title: "Manage My Services",
+            icon: Icons.edit_note,
+            color: Colors.teal,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageServicesScreen())),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- BOOKINGS TAB WIDGET (Placeholder) ---
+class _ManageBookingsTab extends StatelessWidget {
+  const _ManageBookingsTab();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+<<<<<<< HEAD
       appBar: AppBar(
         title: const Text('Manage Bookings'),
         backgroundColor: Colors.deepPurple,
@@ -509,10 +619,38 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
+=======
+      appBar: AppBar(title: const Text('Manage Bookings'), backgroundColor: Colors.deepPurple),
+      body: const Center(child: Text('A list of new, active, and completed bookings will appear here.')),
+    );
+  }
+}
+
+// --- REUSABLE UI WIDGETS ---
+class _InfoCard extends StatelessWidget {
+  final String title, value;
+  final IconData icon;
+  final Color color;
+  const _InfoCard({required this.title, required this.value, required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
       child: Row(
         children: [
           Icon(icon, size: 36, color: color),
           const SizedBox(width: 12),
+<<<<<<< HEAD
+=======
+          // ▼▼▼▼▼ WRAPPED IN EXPANDED TO PREVENT OVERFLOW ▼▼▼▼▼
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,6 +666,10 @@ class _InfoCard extends StatelessWidget {
     );
   }
 }
+<<<<<<< HEAD
+=======
+// ▲▲▲▲▲ INFO CARD IS NOW MORE ROBUST AND WILL NOT OVERFLOW ▲▲▲▲▲
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 
 class _ActionCard extends StatelessWidget {
   final String title;
@@ -561,12 +703,46 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
+<<<<<<< HEAD
 // --- CUSTOM CLIPPER (Unchanged) ---
+=======
+// --- WIDGETS FOR CHART PLACEHOLDER ---
+class _Bar extends StatelessWidget {
+  final double height;
+  final String label;
+  const _Bar({required this.height, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          width: 20,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.shade200,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+      ],
+    );
+  }
+}
+
+// --- CUSTOM CLIPPER FOR THE CURVED APP BAR ---
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
 class _AppBarClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
+<<<<<<< HEAD
     path.lineTo(0, size.height - 50);
+=======
+    path.lineTo(0, size.height - 50); // Start the curve 50px from the bottom
+>>>>>>> 5319e7662288a608f5ad81322248d0b6044db7ac
     path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 50);
     path.lineTo(size.width, 0);
     path.close();
