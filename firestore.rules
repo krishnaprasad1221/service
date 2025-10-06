@@ -1,9 +1,136 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // Helper function to check if the requesting user is an Admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    // Checks if the user's role is 'Service Provider'.
+    function isServiceProvider() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Service Provider';
+    }
+
+    // ---- Lightweight validators (non-breaking) ----
+    function isOptionalString(v) {
+      return v == null || v is string;
+    }
+
+    function isNonEmptyString(v) {
+      return v is string && v.size() > 0;
+    }
+
+    function isOptionalGeo(v) {
+      // In rules, GeoPoint is latlng
+      return v == null || v is latlng;
+    }
+
+    // We cannot iterate lists; validate shape/size only
+    function isOptionalAttachments(arr) {
+      return arr == null || (arr is list && arr.size() <= 20);
+    }
+
+    function isPhoneValid(p) {
+      // Allow null or a 10-15 digit string
+      return p == null || (p is string && p.matches('^\\d{10,15}$'));
+    }
+
+    function isOptionalPincodeValid(p) {
+      // Allow empty string or 6 digits
+      return p == null || (p is string && (p.size() == 0 || p.matches('^\\d{6}$')));
+    }
+
+    // More flexible validation for service request creation
+    function serviceRequestCreateValid() {
+      let d = request.resource.data;
+
+      // --- Core fields that MUST exist ---
+      let requiredOk = isNonEmptyString(d.serviceId) &&
+                       isNonEmptyString(d.providerId) &&
+                       isNonEmptyString(d.serviceName) &&
+                       isNonEmptyString(d.customerId) &&
+                       d.scheduledDateTime is timestamp;
+
+      // --- Flexible validation for other fields ---
+
+      // Address: Must be a map if it exists
+      let addressOk = d.addressSnapshot == null || d.addressSnapshot is map;
+
+      // Contact: Must be a map if it exists, and phone inside is valid
+      let contactOk = d.contact == null || (d.contact is map && isPhoneValid(d.contact.phone));
+
+      return requiredOk && addressOk && contactOk;
+    }
+
+    // ---------------- users ----------------
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (request.auth.uid == userId || isAdmin());
+
+      match /availability/{docId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ---------------- services ----------------
+    match /services/{serviceId} {
+      allow read: if true;
+
+      allow create: if request.auth != null &&
+                       isServiceProvider() &&
+                       request.auth.uid == request.resource.data.providerId;
+
+      allow update: if request.auth != null && request.auth.uid == resource.data.providerId;
+      allow delete: if request.auth != null && 
+                       (request.auth.uid == resource.data.providerId || isAdmin());
+    }
+
+    // ---------------- serviceRequests (bookings) ----------------
+    match /serviceRequests/{requestId} {
+      // Customer creates their own booking (with flexible schema validation)
+      allow create: if request.auth != null &&
+                       request.resource.data.customerId == request.auth.uid &&
+                       serviceRequestCreateValid();
+
+      // Provider or Customer (or Admin) can read bookings involving them
+      allow read: if request.auth != null &&
+                     (resource.data.customerId == request.auth.uid ||
+                      resource.data.providerId == request.auth.uid ||
+                      isAdmin());
+
+      // Keep current behavior: Provider or Customer can update
+      allow update: if request.auth != null &&
+                       (resource.data.providerId == request.auth.uid ||
+                        resource.data.customerId == request.auth.uid);
+
+      allow delete: if false;
+    }
+
+    // ---------------- reviews ----------------
+    match /reviews/{reviewId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+                    request.resource.data.customerId == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+                            resource.data.customerId == request.auth.uid;
+    }
+
+    // ---------------- notifications ----------------
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null &&
+                   resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null &&
+                     resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+                    (
+                      request.resource.data.createdBy == request.auth.uid ||
+                      request.resource.data.userId == request.auth.uid
+                    );
+      allow delete: if request.auth != null &&
+                     resource.data.userId == request.auth.uid;
     }
   }
 }

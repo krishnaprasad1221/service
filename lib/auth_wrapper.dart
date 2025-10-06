@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:serviceprovider/dashboards/admin_dashboard.dart';
 import 'package:serviceprovider/dashboards/serviceprovider_dashboard.dart';
+import 'package:serviceprovider/edit_profile_screen.dart';
 import 'package:serviceprovider/login_screen.dart';
 import 'package:serviceprovider/user_dashboard.dart';
 
@@ -16,73 +17,51 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. If the connection is still loading, show a progress indicator
+        // 1. If connection is still loading, show a progress indicator
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // 2. If the snapshot has data, it means the user is logged in
+        // 2. If a user is logged in
         if (snapshot.hasData && snapshot.data != null) {
-          // Now, check the user's role to redirect them to the correct dashboard
-          return RoleBasedRedirect(userId: snapshot.data!.uid);
-        }
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
+            builder: (context, userDocSnapshot) {
+              if (userDocSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
 
-        // 3. If there's no data, the user is not logged in
-        return const LoginScreen();
-      },
-    );
-  }
-}
+              if (userDocSnapshot.hasData && userDocSnapshot.data!.exists) {
+                final userData = userDocSnapshot.data!.data() as Map<String, dynamic>;
+                final userRole = userData['role'];
 
-class RoleBasedRedirect extends StatelessWidget {
-  final String userId;
-
-  const RoleBasedRedirect({super.key, required this.userId});
-
-  Future<DocumentSnapshot> _getUserData() {
-    return FirebaseFirestore.instance.collection('users').doc(userId).get();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<DocumentSnapshot>(
-      future: _getUserData(),
-      builder: (context, userSnapshot) {
-        // If we are still waiting for user data, show a loading screen
-        if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+                // Route based on role from Firestore
+                if (userRole == 'Admin') {
+                  return const AdminDashboard();
+                } else if (userRole == 'User') {
+                  return const UserDashboard();
+                } else if (userRole == 'Service Provider') {
+                    // This logic is from your login screen, ensuring consistency
+                    final isProfileComplete = userData['isProfileComplete'] ?? false;
+                    if (!isProfileComplete){
+                      return const EditProfileScreen(isCompletingProfile: true);
+                    } 
+                    return const ServiceProviderDashboard();
+                }
+              }
+              
+              // If user exists in Auth but not in Firestore, send to login
+              return const LoginScreen();
+            },
           );
         }
 
-        // If there's an error or the user document doesn't exist, log out and go to login
-        if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
-          // It's safer to sign out if the user's data is missing
-          FirebaseAuth.instance.signOut();
-          return const LoginScreen();
-        }
-
-        // If we have the user data, determine the role and redirect
-        final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-        final userRole = userData['role'];
-
-        switch (userRole) {
-          case 'Admin':
-            return const AdminDashboard();
-          case 'User':
-            return const UserDashboard();
-          case 'Service Provider':
-            return const ServiceProviderDashboard();
-          default:
-            // If the role is unknown, default to the login screen
-            return const LoginScreen();
-        }
+        // 3. If no user is logged in, show the login screen
+        return const LoginScreen();
       },
     );
   }

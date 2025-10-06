@@ -22,7 +22,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return Scaffold(
       backgroundColor: Colors.grey[100], // Lighter background color
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
+        title: const Text("ADMIN"),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,

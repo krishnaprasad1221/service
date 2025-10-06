@@ -124,10 +124,10 @@ class _ServiceProviderEditProfileScreenState
       Navigator.of(context).pop(true); // Return true to signal a refresh
 
     } catch (e) {
-       if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save changes: $e'), backgroundColor: Colors.red),
-        );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save changes: $e'), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -135,85 +135,87 @@ class _ServiceProviderEditProfileScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Your Profile'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _pickImage,
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Colors.grey.shade300,
-                            backgroundImage: _newProfileImage != null
-                                ? FileImage(_newProfileImage!)
-                                : (_existingImageUrl != null && _existingImageUrl!.isNotEmpty
-                                    ? NetworkImage(_existingImageUrl!)
-                                    : null) as ImageProvider?,
-                            child: _newProfileImage == null && (_existingImageUrl == null || _existingImageUrl!.isEmpty)
-                                ? const Icon(Icons.person, size: 60)
-                                : null,
-                          ),
-                          const Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.blue,
-                              child: Icon(Icons.edit, color: Colors.white),
+    return Material(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Your Profile'),
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.grey.shade300,
+                              backgroundImage: _newProfileImage != null
+                                  ? FileImage(_newProfileImage!)
+                                  : (_existingImageUrl != null && _existingImageUrl!.isNotEmpty
+                                      ? NetworkImage(_existingImageUrl!)
+                                      : null) as ImageProvider?,
+                              child: _newProfileImage == null && (_existingImageUrl == null || _existingImageUrl!.isEmpty)
+                                  ? const Icon(Icons.person, size: 60)
+                                  : null,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    TextFormField(
-                      controller: _phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
-                      ),
-                      keyboardType: TextInputType.phone,
-                      validator: (v) => v!.isEmpty ? 'Phone cannot be empty' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Address',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.email),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) => v!.isEmpty ? 'Email cannot be empty' : null,
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _saveChanges,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                            const Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.blue,
+                                child: Icon(Icons.edit, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: _isSaving
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 32),
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone Number',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phone),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        validator: (v) => v!.isEmpty ? 'Phone cannot be empty' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(
+                          labelText: 'Email Address',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (v) => v!.isEmpty ? 'Email cannot be empty' : null,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveChanges,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: _isSaving
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('Save Changes'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }
