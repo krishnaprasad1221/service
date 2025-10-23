@@ -54,6 +54,15 @@
       ]
     },
     {
+      "name": "razorpay_flutter",
+      "version": "1.4.0",
+      "dependencies": [
+        "eventify",
+        "flutter",
+        "fluttertoast"
+      ]
+    },
+    {
       "name": "webview_flutter",
       "version": "4.13.0",
       "dependencies": [
@@ -290,6 +299,11 @@
         "string_scanner",
         "term_glyph"
       ]
+    },
+    {
+      "name": "eventify",
+      "version": "1.0.1",
+      "dependencies": []
     },
     {
       "name": "webview_flutter_wkwebview",
@@ -891,20 +905,6 @@
       "dependencies": [
         "typed_data"
       ]
-    },
-    {
-      "name": "razorpay_flutter",
-      "version": "1.4.0",
-      "dependencies": [
-        "eventify",
-        "flutter",
-        "fluttertoast"
-      ]
-    },
-    {
-      "name": "eventify",
-      "version": "1.0.1",
-      "dependencies": []
     }
   ],
   "configVersion": 1
