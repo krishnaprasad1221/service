@@ -53,10 +53,50 @@ class _PendingRequestCard extends StatelessWidget {
   const _PendingRequestCard({required this.docId, required this.data});
 
   Future<void> _updateRequestStatus(String newStatus) async {
-    await FirebaseFirestore.instance
+    final Map<String, dynamic> updates = {'status': newStatus};
+    if (newStatus == 'accepted') {
+      updates['acceptedAt'] = FieldValue.serverTimestamp();
+    }
+    if (newStatus == 'completed') {
+      updates['completedAt'] = FieldValue.serverTimestamp();
+    }
+
+    final docRef = FirebaseFirestore.instance
         .collection('serviceRequests')
-        .doc(docId)
-        .update({'status': newStatus});
+        .doc(docId);
+
+    try {
+      // Ensure current user is the assigned provider (defensive check)
+      try {
+        final snap = await docRef.get();
+        final data = snap.data() as Map<String, dynamic>?;
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (data == null || uid == null || (data['providerId']?.toString() != uid && data['customerId']?.toString() != uid)) {
+          throw FirebaseException(plugin: 'cloud_firestore', message: 'Not authorized to update this booking');
+        }
+      } catch (e) {
+        rethrow;
+      }
+
+      // Ensure a trackingId exists when accepting
+      if (newStatus == 'accepted') {
+        try {
+          final current = await docRef.get();
+          final data = current.data() as Map<String, dynamic>?;
+          final existing = data?['trackingId']?.toString();
+          if (existing == null || existing.isEmpty) {
+            final now = DateTime.now();
+            final code = 'SRV-${now.year.toString().padLeft(4,'0')}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}-${docId.substring(0, 6).toUpperCase()}';
+            updates['trackingId'] = code;
+          }
+        } catch (_) {}
+      }
+
+      await docRef.update(updates);
+    } catch (e) {
+      // Bubble up for UI to show error via caller context
+      rethrow;
+    }
   }
 
   @override

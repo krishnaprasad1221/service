@@ -245,6 +245,72 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         _selectedTime!.minute,
       );
 
+      // Slot allocation: enforce exclusivity for On Time bookings based on estimated duration
+      // Define candidate interval
+      final int candidateMinutes = _onTime ? 60 : (_estimatedDays * 8 * 60);
+      final DateTime candidateStart = finalDateTime;
+      final DateTime candidateEnd = candidateStart.add(Duration(minutes: candidateMinutes));
+
+      // For On Time bookings, check for any overlapping pending/accepted requests for this provider
+      if (_onTime) {
+        // Query same-day bookings to reduce reads
+        final DateTime dayStart = DateTime(candidateStart.year, candidateStart.month, candidateStart.day);
+        final DateTime dayEnd = DateTime(candidateStart.year, candidateStart.month, candidateStart.day, 23, 59, 59, 999);
+
+        bool overlaps = false;
+        try {
+          final q = await FirebaseFirestore.instance
+              .collection('serviceRequests')
+              .where('providerId', isEqualTo: widget.providerId)
+              .where('status', whereIn: ['pending', 'accepted'])
+              .where('scheduledDateTime', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+              .where('scheduledDateTime', isLessThanOrEqualTo: Timestamp.fromDate(dayEnd))
+              .get();
+
+          for (final d in q.docs) {
+            final data = d.data() as Map<String, dynamic>;
+            final Timestamp? ts = data['scheduledDateTime'] as Timestamp?;
+            if (ts == null) continue;
+            final DateTime otherStart = ts.toDate();
+            final bool otherOnTime = (data['onTime'] == true);
+            final int otherMinutes = otherOnTime
+                ? 60
+                : (((data['estimatedDurationDays'] as int?) ?? 1) * 8 * 60);
+            final DateTime otherEnd = otherStart.add(Duration(minutes: otherMinutes));
+
+            final bool isOverlap = otherStart.isBefore(candidateEnd) && candidateStart.isBefore(otherEnd);
+            if (isOverlap && (otherOnTime || _onTime)) {
+              overlaps = true;
+              break;
+            }
+          }
+        } catch (e) {
+          // If we cannot read provider bookings due to security rules, skip the pre-check gracefully
+          // and allow the booking to proceed. This preserves your rule logic.
+          overlaps = false;
+        }
+
+        if (overlaps) {
+          // Send customer notification: Slot is Full
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'userId': user.uid,
+            'createdBy': user.uid,
+            'type': 'slot_full',
+            'title': 'Slot is Full',
+            'body': 'The selected time is not available for On Time service. Please choose another time.',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Selected slot is full. Please choose another time.')),
+            );
+          }
+          return; // do not create booking
+        }
+      }
+
       final reqRef =
           await FirebaseFirestore.instance.collection('serviceRequests').add({
         'serviceId': widget.serviceId,
@@ -270,7 +336,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         // Contact & Access
         'contact': {
           'name': _contactNameCtrl.text.trim(),
-          'phone': _contactPhoneCtrl.text.trim(),
+          // store digits-only to align with rules (^\d{10,15}$)
+          'phone': phoneDigits,
         },
         'accessNotes': _accessNotesCtrl.text.trim(),
 
@@ -279,7 +346,19 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         if (_attachmentUrls.isNotEmpty) 'attachments': _attachmentUrls,
         'estimatedDurationDays': _estimatedDays,
         'onTime': _onTime,
+        // Optionally store derived minutes for future overlap checks
+        'estimatedDurationMinutes': candidateMinutes,
       });
+
+      // If On Time, immediately mark as 'on_the_way' so timeline reflects the journey start
+      if (_onTime) {
+        try {
+          await reqRef.update({
+            'status': 'on_the_way',
+            'onTheWayAt': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+      }
 
       // Provider notification
       await FirebaseFirestore.instance.collection('notifications').add({

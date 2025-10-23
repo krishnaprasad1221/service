@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+// google_sign_in not required when using FirebaseAuth signInWithProvider on mobile
 
 import 'package:serviceprovider/dashboards/admin_dashboard.dart';
 import 'package:serviceprovider/dashboards/serviceprovider_dashboard.dart';
@@ -17,17 +17,23 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
+  // Subtle entrance animation
+  late final AnimationController _animController;
+  late final Animation<double> _fadeIn;
+  late final Animation<Offset> _slideUp;
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -137,13 +143,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       UserCredential userCredential;
-      final provider = GoogleAuthProvider();
-      provider.addScope('email');
       if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        provider.addScope('email');
         userCredential = await FirebaseAuth.instance.signInWithPopup(provider);
       } else {
-        // Use native provider flow on mobile to avoid google_sign_in token API differences
-        userCredential = await FirebaseAuth.instance.signInWithProvider(provider);
+        // Mobile: use native provider flow; no google_sign_in dependency needed
+        final provider = GoogleAuthProvider();
+        provider.addScope('email');
+        userCredential =
+            await FirebaseAuth.instance.signInWithProvider(provider);
       }
 
       final user = userCredential.user!;
@@ -304,14 +313,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideUp = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.deepPurple, Colors.purple.shade300],
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
           ),
         ),
         child: SafeArea(
@@ -319,13 +340,19 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SingleChildScrollView(
               padding:
                   const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 32),
-                  _buildLoginForm(),
-                ],
+              child: FadeTransition(
+                opacity: _fadeIn,
+                child: SlideTransition(
+                  position: _slideUp,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 32),
+                      _buildLoginForm(),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -386,8 +413,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (value == null || value.trim().isEmpty) {
                   return 'Please enter an email';
                 }
-                if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\\.[a-zA-Z]+")
-                    .hasMatch(value)) {
+                // More permissive and correct email pattern (handles subdomains and hyphens)
+                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                    .hasMatch(value.trim())) {
                   return 'Please enter a valid email address';
                 }
                 return null;
@@ -447,25 +475,40 @@ class _LoginScreenState extends State<LoginScreen> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _login,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      )
-                    : const Text(
-                        "Sign In",
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF22D3EE), Color(0xFFA78BFA)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : const Text(
+                            "Sign In",
+                            style: TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -501,8 +544,8 @@ class _LoginScreenState extends State<LoginScreen> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _isLoading ? null : _signInWithGoogle,
-                icon: Image.network(
-                  'https://developers.google.com/identity/images/g-logo.png',
+                icon: Image.asset(
+                  'assets/g-logo.png',
                   width: 18,
                   height: 18,
                   fit: BoxFit.contain,

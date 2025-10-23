@@ -19,6 +19,7 @@
         "google_sign_in",
         "image_picker",
         "intl",
+        "razorpay_flutter",
         "url_launcher",
         "webview_flutter"
       ],
@@ -890,6 +891,20 @@
       "dependencies": [
         "typed_data"
       ]
+    },
+    {
+      "name": "razorpay_flutter",
+      "version": "1.4.0",
+      "dependencies": [
+        "eventify",
+        "flutter",
+        "fluttertoast"
+      ]
+    },
+    {
+      "name": "eventify",
+      "version": "1.0.1",
+      "dependencies": []
     }
   ],
   "configVersion": 1

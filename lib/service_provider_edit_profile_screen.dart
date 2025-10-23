@@ -18,8 +18,10 @@ class ServiceProviderEditProfileScreen extends StatefulWidget {
 class _ServiceProviderEditProfileScreenState
     extends State<ServiceProviderEditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _addressController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -35,8 +37,10 @@ class _ServiceProviderEditProfileScreenState
 
   @override
   void dispose() {
+    _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -53,8 +57,10 @@ class _ServiceProviderEditProfileScreenState
           .doc(user.uid)
           .get();
       final data = doc.data() ?? {};
+      _nameController.text = (data['username'] ?? '').toString();
       _phoneController.text = (data['phone'] ?? '').toString();
       _emailController.text = user.email ?? (data['email'] ?? '').toString();
+      _addressController.text = (data['address'] ?? '').toString();
       setState(() {
         _existingImageUrl = data['profileImageUrl'];
         _isLoading = false;
@@ -101,7 +107,9 @@ class _ServiceProviderEditProfileScreenState
         updatedData['profileImageUrl'] = imageUrl;
       }
       
+      updatedData['username'] = _nameController.text.trim();
       updatedData['phone'] = _phoneController.text.trim();
+      updatedData['address'] = _addressController.text.trim();
 
       if (_emailController.text.trim() != user.email) {
         // Production apps need re-authentication before updating email for security
@@ -115,6 +123,10 @@ class _ServiceProviderEditProfileScreenState
             .collection('users')
             .doc(user.uid)
             .update(updatedData);
+        // Optionally reflect name in FirebaseAuth profile (non-breaking)
+        if (_nameController.text.trim().isNotEmpty) {
+          await user.updateDisplayName(_nameController.text.trim());
+        }
       }
 
       if (!mounted) return;
@@ -178,6 +190,17 @@ class _ServiceProviderEditProfileScreenState
                       ),
                       const SizedBox(height: 32),
                       TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Service Provider Name',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => v!.trim().isEmpty ? 'Name cannot be empty' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
                         controller: _phoneController,
                         decoration: const InputDecoration(
                           labelText: 'Phone Number',
@@ -186,6 +209,18 @@ class _ServiceProviderEditProfileScreenState
                         ),
                         keyboardType: TextInputType.phone,
                         validator: (v) => v!.isEmpty ? 'Phone cannot be empty' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Address',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                        maxLines: 3,
+                        textCapitalization: TextCapitalization.sentences,
+                        validator: (v) => v!.trim().isEmpty ? 'Address cannot be empty' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(

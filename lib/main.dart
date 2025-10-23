@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:serviceprovider/auth_wrapper.dart'; // <-- IMPORT THE NEW WRAPPER
+import 'package:serviceprovider/welcome_screen.dart';
 
 import 'firebase_options.dart'; // From FlutterFire CLI
 
@@ -31,11 +32,8 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity, // Good for modern UI
       ),
-      // ▼▼▼▼▼ THIS IS THE KEY CHANGE ▼▼▼▼▼
-      // The app's home is now the AuthWrapper. It will decide whether to show
-      // the LoginScreen or the correct Dashboard based on the user's auth state.
-      home: const AuthWrapper(),
-      // ▲▲▲▲▲ THIS IS THE KEY CHANGE ▲▲▲▲▲
+      // Start at a polished WelcomeScreen, then it navigates to AuthWrapper.
+      home: const WelcomeScreen(),
     );
   }
 }

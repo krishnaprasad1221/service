@@ -1,18 +1,36 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // Helper function to check if the requesting user is an Admin
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    // ---------------- categories (NEW) ----------------
+    match /categories/{categoryId} {
+      // Public read so app clients can list/use categories
+      allow read: if true;
+
+      // Only admins can manage categories
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // ---------------- subcategories (NEW) ----------------
+    match /subcategories/{subCategoryId} {
+      // Public read so app clients can list/use sub-categories
+      allow read: if true;
+
+      // Providers can create sub-categories under a category; Admins too
+      allow create: if request.auth != null && (isServiceProvider() || isAdmin());
+
+      // Only Admin can update/delete sub-categories
+      allow update, delete: if request.auth != null && isAdmin();
     }
 
     // Checks if the user's role is 'Service Provider'.
     function isServiceProvider() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Service Provider';
     }
-
-    // ---- Lightweight validators (non-breaking) ----
     function isOptionalString(v) {
       return v == null || v is string;
     }
@@ -24,6 +42,15 @@ service cloud.firestore {
     function isOptionalGeo(v) {
       // In rules, GeoPoint is latlng
       return v == null || v is latlng;
+    }
+
+    function isOptionalBool(v) {
+      return v == null || v is bool;
+    }
+
+    function isOptionalNumber(v) {
+      // Firestore uses number type for ints/floats in rules
+      return v == null || v is number;
     }
 
     // We cannot iterate lists; validate shape/size only
@@ -39,6 +66,11 @@ service cloud.firestore {
     function isOptionalPincodeValid(p) {
       // Allow empty string or 6 digits
       return p == null || (p is string && (p.size() == 0 || p.matches('^\\d{6}$')));
+    }
+
+    function isOptionalTrackingId(v) {
+      // Allow null or non-empty string up to 64 chars
+      return v == null || (v is string && v.size() > 0 && v.size() <= 64);
     }
 
     // More flexible validation for service request creation
@@ -60,7 +92,31 @@ service cloud.firestore {
       // Contact: Must be a map if it exists, and phone inside is valid
       let contactOk = d.contact == null || (d.contact is map && isPhoneValid(d.contact.phone));
 
-      return requiredOk && addressOk && contactOk;
+      // Optional fields used by UI
+      let onTimeOk = isOptionalBool(d.onTime);
+      let estimatedDaysOk = d.estimatedDurationDays == null || (isOptionalNumber(d.estimatedDurationDays) && d.estimatedDurationDays >= 0 && d.estimatedDurationDays <= 365);
+      let attachmentsOk = isOptionalAttachments(d.attachments);
+
+      return requiredOk && addressOk && contactOk && onTimeOk && estimatedDaysOk && attachmentsOk;
+    }
+
+    function serviceRequestUpdateValid() {
+      let d = request.resource.data;
+      let old = resource.data;
+      let idsSame =
+        d.serviceId == old.serviceId &&
+        d.providerId == old.providerId &&
+        d.customerId == old.customerId;
+
+      let statusOk = isOptionalString(d.status);
+
+      // Relaxed for serverTimestamp writes
+      let acceptedOk = (d.acceptedAt == null) || (d.acceptedAt == old.acceptedAt) || (d.acceptedAt is timestamp);
+      let completedOk = (d.completedAt == null) || (d.completedAt == old.completedAt) || (d.completedAt is timestamp);
+
+      let trackingOk = isOptionalTrackingId(d.trackingId);
+
+      return idsSame && statusOk && acceptedOk && completedOk && trackingOk;
     }
 
     // ---------------- users ----------------
@@ -76,14 +132,58 @@ service cloud.firestore {
     }
     
     // ---------------- services ----------------
+    function serviceCreateValid() {
+      let d = request.resource.data;
+      let requiredOk =
+        isNonEmptyString(d.providerId) &&
+        isNonEmptyString(d.serviceName) &&
+        isNonEmptyString(d.description) &&
+        isNonEmptyString(d.serviceImageUrl);
+      let categoryOk =
+        isOptionalString(d.category) &&
+        isOptionalString(d.categoryId) &&
+        isOptionalString(d.categoryName);
+      let subcatsOk =
+        isOptionalString(d.subCategoryId) &&
+        isOptionalString(d.subCategoryName) &&
+        isOptionalStringList(d.subCategoryIds, 20) &&
+        isOptionalStringList(d.subCategoryNames, 50);
+      let optionalInfoOk =
+        isOptionalString(d.terms) &&
+        isPhoneValid(d.contactPhone) &&
+        isEmailValid(d.contactEmail) &&
+        isOptionalString(d.websiteUrl) &&
+        isOptionalBool(d.isAvailable);
+      let locationOk =
+        isOptionalString(d.locationAddress) &&
+        isOptionalString(d.addressDisplay) &&
+        isOptionalGeo(d.locationGeoPoint) &&
+        isOptionalNumber(d.lat) &&
+        isOptionalNumber(d.lng) &&
+        isOptionalString(d.geohash) &&
+        isOptionalStringList(d.serviceAreas, 50);
+      let timestampsOk = d.createdAt == null || d.createdAt is timestamp;
+      return requiredOk && categoryOk && subcatsOk && optionalInfoOk && locationOk && timestampsOk;
+    }
+
+    function serviceUpdateValid() {
+      let d = request.resource.data;
+      let old = resource.data;
+      let providerSame = d.providerId == old.providerId;
+      return providerSame && serviceCreateValid();
+    }
+
     match /services/{serviceId} {
       allow read: if true;
 
       allow create: if request.auth != null &&
                        isServiceProvider() &&
-                       request.auth.uid == request.resource.data.providerId;
+                       request.auth.uid == request.resource.data.providerId &&
+                       serviceCreateValid();
 
-      allow update: if request.auth != null && request.auth.uid == resource.data.providerId;
+      allow update: if request.auth != null &&
+                       request.auth.uid == resource.data.providerId &&
+                       serviceUpdateValid();
       allow delete: if request.auth != null && 
                        (request.auth.uid == resource.data.providerId || isAdmin());
     }
@@ -101,10 +201,11 @@ service cloud.firestore {
                       resource.data.providerId == request.auth.uid ||
                       isAdmin());
 
-      // Keep current behavior: Provider or Customer can update
+      // Provider or Customer can update if schema remains consistent
       allow update: if request.auth != null &&
                        (resource.data.providerId == request.auth.uid ||
-                        resource.data.customerId == request.auth.uid);
+                        resource.data.customerId == request.auth.uid) &&
+                       serviceRequestUpdateValid();
 
       allow delete: if false;
     }

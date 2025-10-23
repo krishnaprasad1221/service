@@ -1,4 +1,29 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionId": "serviceRequests",
+      "fields": [
+        { "fieldPath": "providerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledDateTime", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionId": "serviceRequests",
+      "fields": [
+        { "fieldPath": "providerId", "order": "ASCENDING" },
+        { "fieldPath": "onTime", "order": "ASCENDING" },
+        { "fieldPath": "scheduledDateTime", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionId": "serviceRequests",
+      "fields": [
+        { "fieldPath": "providerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

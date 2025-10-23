@@ -139,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       Fluttertoast.showToast(
         msg: "Verification email sent! Please check your inbox.",
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFF10B981),
       );
     } on FirebaseAuthException catch (e) {
       String errorMessage = "Registration Failed";
@@ -208,7 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         Fluttertoast.showToast(
           msg: "Email verified! Registration complete. Please log in.",
-          backgroundColor: Colors.green,
+          backgroundColor: Color(0xFF10B981),
           toastLength: Toast.LENGTH_LONG,
         );
 
@@ -247,7 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
       Fluttertoast.showToast(
         msg: "Verification email sent again.",
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFF10B981),
       );
     } catch (e) {
       Fluttertoast.showToast(
@@ -268,7 +268,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple, Colors.purple.shade300],
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -496,7 +496,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: Color(0xFF10B981),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -580,11 +580,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       left: role == _roles.last ? 8.0 : 0.0),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.deepPurple : Colors.grey[200],
+                    color: isSelected ? Color(0xFF7C3AED) : Colors.grey[200],
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                         color:
-                            isSelected ? Colors.deepPurple : Colors.grey[300]!),
+                            isSelected ? Color(0xFF7C3AED) : Colors.grey[300]!),
                   ),
                   child: Center(
                     child: Text(
@@ -644,7 +644,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.deepPurple)),
+            borderSide: const BorderSide(color: Color(0xFF7C3AED))),
       ),
     );
   }
@@ -655,7 +655,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _registerAndSendVerificationEmail,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: Color(0xFF7C3AED),
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

@@ -4,12 +4,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:serviceprovider/login_screen.dart';
 import 'package:serviceprovider/profile_screen.dart';
 import 'package:serviceprovider/view_services_screen.dart';
 import 'package:serviceprovider/my_requests_screen.dart';
 import 'package:serviceprovider/payment_history_screen.dart';
 import 'package:serviceprovider/service_search_screen.dart';
+import 'package:serviceprovider/customer_notifications_screen.dart';
 // Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
@@ -18,6 +20,63 @@ class UserDashboard extends StatefulWidget {
   @override
   State<UserDashboard> createState() => _UserDashboardState();
 }
+
+
+// Customer notifications bell with unread badge
+class _CustomerNotificationsBell extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
+    final stream = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: uid)
+        .where('isRead', isEqualTo: false)
+        .limit(100)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        int count = 0;
+        if (snapshot.hasData) count = snapshot.data!.docs.length;
+        return IconButton(
+          tooltip: 'Notifications',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CustomerNotificationsScreen()),
+            );
+          },
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications, color: Colors.white),
+              if (count > 0)
+                Positioned(
+                  right: -2,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : count.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 
 class _UserDashboardState extends State<UserDashboard> {
   int _selectedIndex = 0;
@@ -37,6 +96,7 @@ class _UserDashboardState extends State<UserDashboard> {
     _fetchUserData();
     _attachUserListener();
   }
+
 
 
   // Fetch initial values for username/profile photo and set up pages
@@ -175,6 +235,7 @@ class _UserDashboardState extends State<UserDashboard> {
       backgroundColor: Colors.deepPurple,
       elevation: 2,
       actions: [
+        _CustomerNotificationsBell(),
         IconButton(
           icon: const Icon(Icons.logout, color: Colors.white),
           onPressed: _logout,
@@ -359,11 +420,20 @@ class _UserDashboardState extends State<UserDashboard> {
                 MaterialPageRoute(builder: (_) => const ViewServicesScreen())),
           ),
           _buildDashboardCard(
-            title: "Payment\nHistory",
+            title: "Payment",
             icon: Icons.history_rounded,
             color: Colors.green,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const PaymentHistoryScreen())),
+          ),
+          _buildDashboardCard(
+            title: "Service\nTimeline",
+            icon: Icons.timeline_rounded,
+            color: Colors.deepPurple,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
+            ),
           ),
         ]),
       ),

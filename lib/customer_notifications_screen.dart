@@ -86,7 +86,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
               final isRead = (data['isRead'] as bool?) ?? false;
               final String type = (data['type'] as String?) ?? 'general';
               final String? relatedId = data['relatedId'] as String?;
+              // trackingId removed from notifications UI
               final ts = data['createdAt'];
+              final String? status = (data['status'] as String?);
               DateTime? dt;
               if (ts is Timestamp) dt = ts.toDate();
               final tsStr = dt != null ? DateFormat.yMMMd().add_jm().format(dt) : '';
@@ -134,7 +136,12 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     leadingIcon,
                     color: isRead ? Colors.grey : Colors.deepPurple,
                   ),
-                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Row(
+                    children: [
+                      Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)) ),
+                      if (status != null && status.isNotEmpty) _StatusChip(status: status),
+                    ],
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -163,19 +170,58 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     if (!isRead) {
                       await doc.reference.update({'isRead': true});
                     }
-                    if ((type == 'booking_status' || type == 'payment_request') && relatedId != null && relatedId.isNotEmpty) {
-                      if (!mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => BookingDetailScreen(requestId: relatedId)),
-                      );
-                    }
+                    // Navigation to booking details intentionally disabled per requirements
+                    return;
                   },
                 ),
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  const _StatusChip({required this.status});
+
+  Color _colorFor(String s) {
+    switch (s.toLowerCase()) {
+      case 'accepted':
+        return Colors.orange;
+      case 'completed':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorFor(status);
+    final label = status.isNotEmpty
+        ? status[0].toUpperCase() + status.substring(1)
+        : 'Status';
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.6)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

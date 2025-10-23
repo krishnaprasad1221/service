@@ -1,5 +1,3 @@
-// lib/dashboards/admin_dashboard.dart
-
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:serviceprovider/login_screen.dart';
 import 'package:serviceprovider/dashboards/manage_approved_providers_screen.dart';
 import 'package:serviceprovider/dashboards/manage_services_screen.dart';
+import 'package:serviceprovider/dashboards/manage_categories_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -20,7 +19,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Lighter background color
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text("ADMIN"),
         titleTextStyle: const TextStyle(
@@ -28,7 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
-        backgroundColor: const Color(0xFF1E2A5A), // A deeper blue
+        backgroundColor: const Color(0xFF1E2A5A),
         elevation: 0,
         actions: [
           IconButton(
@@ -57,6 +56,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             const SizedBox(height: 16),
             _buildManagementCard(context),
             const SizedBox(height: 16),
+            _buildManageCategoriesCard(context),
+            const SizedBox(height: 16),
             _buildManageServicesCard(context),
             const SizedBox(height: 24),
             _buildSectionTitle("Platform Overview"),
@@ -78,8 +79,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-  
-  // ▼▼▼▼▼ KPI VALUES UPDATED IN THIS WIDGET ▼▼▼▼▼
+
   Widget _buildKpiGrid() {
     return GridView.count(
       shrinkWrap: true,
@@ -95,7 +95,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ],
     );
   }
-  // ▲▲▲▲▲ KPI VALUES UPDATED IN THIS WIDGET ▲▲▲▲▲
 
   Widget _buildVerificationCard(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -166,6 +165,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ManageServicesScreen()),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildManageCategoriesCard(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('categories').snapshots(),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return ActionCard(
+          title: 'Manage Categories',
+          subtitle: '$count categories',
+          icon: FontAwesomeIcons.tags,
+          count: count,
+          iconColor: Colors.purple,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManageCategoriesScreen()),
             );
           },
         );

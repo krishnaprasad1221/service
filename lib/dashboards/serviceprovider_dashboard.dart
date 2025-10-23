@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart'; // <-- Make sure this import is added
+import '../create_billing_screen.dart';
 import 'package:serviceprovider/login_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -236,17 +237,29 @@ class _DashboardHomeTab extends StatelessWidget {
       backgroundColor: Colors.grey[100],
       body: SafeArea(
         top: false,
-        child: CustomScrollView(
-          slivers: [
-            _buildCurvedHeader(context),
-            _buildSectionTitle("At a Glance"),
-            _buildKpiGrid(),
-            _buildSectionTitle("Performance"),
-            const _EarningsSummaryKpis(),
-            _buildActionRequiredCard(context),
-            _buildSectionTitle("Manage Business"),
-            _buildQuickActionsGrid(context),
-          ],
+        bottom: false, // Disable bottom safe area to handle padding manually
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                _buildCurvedHeader(context),
+                _buildSectionTitle("At a Glance"),
+                _buildKpiGrid(),
+                _buildSectionTitle("Performance"),
+                const _EarningsSummaryKpis(),
+                _buildActionRequiredCard(context),
+                _buildSectionTitle("Manage Business"),
+                _buildQuickActionsGrid(context),
+                // Add bottom padding to account for the bottom navigation bar and system UI
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: MediaQuery.of(context).padding.bottom + 20, // Extra 20 pixels for the bottom navigation bar
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -274,38 +287,54 @@ class _DashboardHomeTab extends StatelessWidget {
                   child: Image.asset('assets/header_pattern.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const SizedBox()),
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 16,
-                  left: 24,
-                  right: 24,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text("Welcome back,", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 18)),
-                          Text(
-                            username,
-                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Welcome back,", 
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8), 
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              username,
+                              style: const TextStyle(
+                                color: Colors.white, 
+                                fontSize: 24, 
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    _NotificationsBell(),
-                    const SizedBox(width: 12),
-                    CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Colors.white.withOpacity(0.3),
-                      backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl!) : null,
-                      child: profileImageUrl == null ? const Icon(Icons.person, size: 35, color: Colors.white) : null,
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      _NotificationsBell(),
+                      const SizedBox(width: 8),
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: Colors.white.withOpacity(0.3),
+                        backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl!) : null,
+                        child: profileImageUrl == null 
+                            ? const Icon(Icons.person, size: 28, color: Colors.white) 
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -328,47 +357,104 @@ class _DashboardHomeTab extends StatelessWidget {
   }
   
   Widget _buildKpiGrid() {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      sliver: SliverGrid.count(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 2.5,
-        children: [
-          _InfoCard(title: 'Completed Jobs', value: '156', icon: Icons.check_circle, color: Colors.green),
-          _InfoCard(title: 'Your Rating', value: '4.8 ★', icon: Icons.star, color: Colors.amber),
-        ],
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: _InfoCard(
+                title: 'Completed Jobs', 
+                value: '156', 
+                icon: Icons.check_circle, 
+                color: Colors.green
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _InfoCard(
+                title: 'Your Rating', 
+                value: '4.8 ★', 
+                icon: Icons.star, 
+                color: Colors.amber
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildActionRequiredCard(BuildContext context) {
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Container(
-          decoration: BoxDecoration(
-             gradient: LinearGradient(
-              colors: [Colors.orange.shade600, Colors.orange.shade400],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade600, Colors.orange.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          child: ListTile(
-            leading: const Icon(Icons.notifications_active, color: Colors.white, size: 30),
-            title: const Text("3 New Requests", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
-            subtitle: Text("Respond now to improve your rating", style: TextStyle(color: Colors.white.withOpacity(0.9))),
-            trailing: const Icon(Icons.arrow_forward, color: Colors.white),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3), 
+              blurRadius: 8, 
+              offset: const Offset(0, 3)
+            )
+          ]
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
             onTap: () {
-                // Navigate to dedicated Pending Requests screen
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PendingRequestsScreen()),
-                );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PendingRequestsScreen()),
+              );
             },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.notifications_active, color: Colors.white, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "3 New Requests", 
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold, 
+                            color: Colors.white, 
+                            fontSize: 15,
+                            height: 1.1,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Respond now to improve your rating", 
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 11,
+                            height: 1.1,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -376,45 +462,63 @@ class _DashboardHomeTab extends StatelessWidget {
   }
 
   Widget _buildQuickActionsGrid(BuildContext context) {
+    final actions = [
+      {
+        'title': 'Add New Service',
+        'icon': Icons.add_circle,
+        'color': Colors.blue,
+        'route': const CreateServiceScreen(),
+      },
+      {
+        'title': 'Manage Services',
+        'icon': Icons.edit_note,
+        'color': Colors.teal,
+        'route': const ManageServicesScreen(),
+      },
+      {
+        'title': 'Availability',
+        'icon': Icons.schedule,
+        'color': Colors.purple,
+        'route': const ProviderAvailabilityScreen(),
+      },
+      {
+        'title': 'Notifications',
+        'icon': Icons.notifications,
+        'color': Colors.orange,
+        'route': const ProviderNotificationsScreen(),
+      },
+      {
+        'title': 'On Time',
+        'icon': Icons.access_time_filled,
+        'color': Colors.indigo,
+        'route': const OnTimeBookingsScreen(),
+      },
+    ];
+
     return SliverPadding(
-      padding: const EdgeInsets.all(16.0),
-      sliver: SliverGrid.count(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 1.1,
-        children: [
-          _ActionCard(
-            title: "Add New Service",
-            icon: Icons.add_circle,
-            color: Colors.blue,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateServiceScreen())),
-          ),
-          _ActionCard(
-            title: "Manage My Services",
-            icon: Icons.edit_note,
-            color: Colors.teal,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageServicesScreen())),
-          ),
-          _ActionCard(
-            title: "Manage Availability",
-            icon: Icons.schedule,
-            color: Colors.deepPurple,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderAvailabilityScreen())),
-          ),
-          _ActionCard(
-            title: "Notifications",
-            icon: Icons.notifications,
-            color: Colors.orange,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderNotificationsScreen())),
-          ),
-          _ActionCard(
-            title: "On Time Service Requests",
-            icon: Icons.access_time_filled,
-            color: Colors.indigo,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OnTimeBookingsScreen())),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.3,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final action = actions[index];
+            return _ActionCard(
+              title: action['title'] as String,
+              icon: action['icon'] as IconData,
+              color: action['color'] as Color,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => action['route'] as Widget),
+              ),
+            );
+          },
+          childCount: actions.length,
+        ),
       ),
     );
   }
@@ -526,14 +630,12 @@ class _ManageBookingsTabState extends State<_ManageBookingsTab>
     );
   }
 }
-
-// --- REUSABLE WIDGET TO DISPLAY BOOKING LISTS ---
 class _BookingList extends StatelessWidget {
   final String status;
 
   const _BookingList({required this.status});
 
-  Future<void> _updateRequestStatus(String docId, String newStatus) async {
+  Future<void> _updateRequestStatus(BuildContext context, String docId, String newStatus) async {
     final Map<String, dynamic> updates = {'status': newStatus};
     if (newStatus == 'accepted') {
       updates['acceptedAt'] = FieldValue.serverTimestamp();
@@ -541,10 +643,55 @@ class _BookingList extends StatelessWidget {
     if (newStatus == 'completed') {
       updates['completedAt'] = FieldValue.serverTimestamp();
     }
+    if (newStatus == 'on_the_way') {
+      updates['onTheWayAt'] = FieldValue.serverTimestamp();
+    }
+    if (newStatus == 'arrived') {
+      updates['arrivedAt'] = FieldValue.serverTimestamp();
+    }
     final docRef = FirebaseFirestore.instance
         .collection('serviceRequests')
         .doc(docId);
-    await docRef.update(updates);
+
+    // Ownership check
+    try {
+      final current = await docRef.get();
+      final data = current.data() as Map<String, dynamic>?;
+      if (data == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Booking not found')), 
+          );
+        }
+        return;
+      }
+      final providerId = data['providerId']?.toString();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (providerId == null || uid == null || providerId != uid) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are not the assigned provider for this booking.')), 
+          );
+        }
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      await docRef.update(updates);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Status updated')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+      return; // stop if update failed
+    }
 
     // Create a notification for the customer to reflect provider action
     try {
@@ -559,12 +706,23 @@ class _BookingList extends StatelessWidget {
           if (newStatus == 'accepted') {
             title = 'Booking accepted';
             body = 'Your request for $serviceName was accepted';
+          } else if (newStatus == 'on_the_way') {
+            title = 'On the way';
+            body = 'Provider is on the way for $serviceName';
           } else if (newStatus == 'completed') {
             title = 'Booking completed';
-            body = '$serviceName has been marked completed';
+            final ts = data['completedAt'];
+            if (ts is Timestamp) {
+              body = '$serviceName has been marked completed on ' + DateFormat.yMMMd().add_jm().format(ts.toDate());
+            } else {
+              body = '$serviceName has been marked completed';
+            }
           } else if (newStatus == 'rejected') {
             title = 'Booking rejected';
             body = 'Your request for $serviceName was rejected';
+          } else if (newStatus == 'arrived') {
+            title = 'Arrived';
+            body = 'Provider has arrived for $serviceName';
           } else {
             title = 'Booking update';
             body = 'Status changed to $newStatus for $serviceName';
@@ -590,13 +748,15 @@ class _BookingList extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser!;
 
+    final baseQuery = FirebaseFirestore.instance
+        .collection('serviceRequests')
+        .where('providerId', isEqualTo: user.uid);
+
+    // To avoid composite index requirements, stream all provider requests and filter/sort client-side
+    final Stream<QuerySnapshot> stream = baseQuery.snapshots();
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('serviceRequests')
-          .where('providerId', isEqualTo: user.uid)
-          .where('status', isEqualTo: status)
-          .orderBy('scheduledDateTime', descending: true)
-          .snapshots(),
+      stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -604,14 +764,35 @@ class _BookingList extends StatelessWidget {
         if (snapshot.hasError) {
           return const Center(child: Text('An error occurred.'));
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final allDocs = snapshot.data?.docs ?? [];
+        final List<QueryDocumentSnapshot> filtered = allDocs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final st = (data['status'] as String?) ?? 'pending';
+          if (status == 'accepted') {
+            return st == 'accepted' || st == 'on_the_way' || st == 'arrived';
+          }
+          return st == status;
+        }).toList();
+
+        if (filtered.isEmpty) {
           return Center(child: Text('No $status requests found.'));
         }
 
+        // Sort by scheduledDateTime desc
+        filtered.sort((a, b) {
+          final ma = a.data() as Map<String, dynamic>;
+          final mb = b.data() as Map<String, dynamic>;
+          final ta = ma['scheduledDateTime'];
+          final tb = mb['scheduledDateTime'];
+          final da = ta is Timestamp ? ta.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          final db = tb is Timestamp ? tb.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          return db.compareTo(da);
+        });
+
         return ListView.builder(
-          itemCount: snapshot.data!.docs.length,
+          itemCount: filtered.length,
           itemBuilder: (context, index) {
-            final doc = snapshot.data!.docs[index];
+            final doc = filtered[index];
             final data = doc.data() as Map<String, dynamic>;
             return _buildBookingCard(context, doc.id, data);
           },
@@ -652,105 +833,218 @@ class _BookingList extends StatelessWidget {
             .trim())
         : (data['address'] as String?);
 
-    final String? estimatedDuration = _pickFirstString([
-      data['estimatedDuration'],
-      data['estimated_time'],
-      data['timeEstimate'],
-      data['duration'],
-      data['expectedDuration'],
-      data['durationText'],
-      (data['durationMinutes'] != null) ? "${data['durationMinutes']} mins" : null,
-      (data['estimatedDurationDays'] != null) ? "${data['estimatedDurationDays']} day(s)" : null,
-    ]);
+    final bool onTime = (data['onTime'] == true);
+    final String? estimatedDuration = onTime
+        ? 'On Time'
+        : _pickFirstString([
+            data['estimatedDuration'],
+            data['estimated_time'],
+            data['timeEstimate'],
+            data['duration'],
+            data['expectedDuration'],
+            data['durationText'],
+            (data['durationMinutes'] != null) ? "${data['durationMinutes']} mins" : null,
+            (data['estimatedDurationDays'] != null) ? "${data['estimatedDurationDays']} day(s)" : null,
+          ]);
 
     final double? quoted = _toDouble(data['quotedAmount']);
     final double? finalAmt = _toDouble(data['finalAmount']);
     final int photoCount = (((data['imageUrls'] as List?)?.length) ?? 0) +
         (((data['attachments'] as List?)?.length) ?? 0);
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => BookingDetailScreen(requestId: docId),
-          ),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        elevation: 3,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(data['serviceName'] ?? 'No Service Name',
-                  style:
-                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 8),
-              _CustomerDetailsSection(
-                customerId: data['customerId'],
-                fallbackName: data['customerName'] ?? 'Customer',
-                bookingData: data,
+    final String statusStr = (data['status'] as String?) ?? 'pending';
+    final String? description = (data['description'] ?? data['notes'])?.toString();
+    Color statusColor;
+    switch (statusStr) {
+      case 'accepted':
+        statusColor = Colors.orange;
+        break;
+      case 'completed':
+        statusColor = Colors.green;
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        break;
+      default:
+        statusColor = Colors.grey;
+        break;
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BookingDetailScreen(requestId: docId),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Gradient header strip
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.deepPurple, Colors.purple.shade400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              const SizedBox(height: 8),
-              _InfoRow(
-                icon: Icons.event,
-                text: '$scheduledDateStr at $scheduledTimeStr',
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(Icons.home_repair_service, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      data['serviceName'] ?? 'No Service Name',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.6)),
+                    ),
+                    child: Text(
+                      statusStr.toUpperCase(),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+                    ),
+                  ),
+                ],
               ),
-              if (requestedDateStr != null && requestedTimeStr != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.schedule,
-                    text: 'Requested: $requestedDateStr at $requestedTimeStr',
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (description != null && description.trim().isNotEmpty) ...[
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  _CustomerDetailsSection(
+                    customerId: data['customerId'],
+                    fallbackName: data['customerName'] ?? 'Customer',
+                    bookingData: data,
                   ),
-                ),
-              if (addressStr != null && addressStr.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.location_on_outlined,
-                    text: addressStr,
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.event, size: 18, color: Colors.black54),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('$scheduledDateStr at $scheduledTimeStr',
+                            style: const TextStyle(fontSize: 14)),
+                      ),
+                    ],
                   ),
-                ),
-              if (estimatedDuration != null && estimatedDuration.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.timer_outlined,
-                    text: 'Estimated: $estimatedDuration',
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (onTime || (estimatedDuration != null && estimatedDuration!.isNotEmpty))
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: (onTime ? Colors.green : Colors.indigo).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: onTime ? Colors.green : Colors.indigo),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(onTime ? Icons.access_time_filled : Icons.schedule,
+                                  size: 16, color: onTime ? Colors.green : Colors.indigo),
+                              const SizedBox(width: 6),
+                              Text(onTime ? 'On Time' : (estimatedDuration ?? ''),
+                                  style: TextStyle(
+                                    color: onTime ? Colors.green : Colors.indigo,
+                                    fontWeight: FontWeight.w600,
+                                  )),
+                            ],
+                          ),
+                        ),
+                      if (photoCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.orange),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.photo_library_outlined, size: 16, color: Colors.orange),
+                              const SizedBox(width: 6),
+                              Text('$photoCount photo(s)', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      if (quoted != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.blueGrey),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.request_quote, size: 16, color: Colors.blueGrey),
+                              const SizedBox(width: 6),
+                              Text('Quoted: ₹${quoted!.toStringAsFixed(2)}',
+                                  style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      if (finalAmt != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.teal),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.payments, size: 16, color: Colors.teal),
+                              const SizedBox(width: 6),
+                              Text('Final: ₹${finalAmt!.toStringAsFixed(2)}',
+                                  style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-              if (quoted != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.request_quote,
-                    text: 'Quote: ${quoted.toStringAsFixed(2)}',
-                  ),
-                ),
-              if (finalAmt != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.payments_outlined,
-                    text: 'Final: ${finalAmt.toStringAsFixed(2)}',
-                  ),
-                ),
-              if (photoCount > 0)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: _InfoRow(
-                    icon: Icons.photo_library_outlined,
-                    text: '$photoCount photo(s)',
-                  ),
-                ),
-              const SizedBox(height: 12),
-              _buildActionButtons(docId),
-            ],
-          ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildActionButtons(context, docId),
+          ],
         ),
       ),
     );
@@ -772,31 +1066,57 @@ class _BookingList extends StatelessWidget {
     return null;
   }
 
-  Widget _buildActionButtons(String docId) {
+  Widget _buildActionButtons(BuildContext context, String docId) {
     if (status == 'pending') {
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           TextButton(
-            onPressed: () => _updateRequestStatus(docId, 'rejected'),
+            onPressed: () => _updateRequestStatus(context, docId, 'rejected'),
             child: const Text('Reject', style: TextStyle(color: Colors.red)),
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: () => _updateRequestStatus(docId, 'accepted'),
+            onPressed: () => _updateRequestStatus(context, docId, 'accepted'),
             child: const Text('Accept'),
           ),
         ],
       );
-    } else if (status == 'accepted') {
-      return Align(
-        alignment: Alignment.centerRight,
-        child: ElevatedButton.icon(
-          icon: const Icon(Icons.check_circle_outline, size: 18),
-          label: const Text('Mark as Complete'),
-          onPressed: () => _updateRequestStatus(docId, 'completed'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-        ),
+    } else if (status == 'accepted' || status == 'on_the_way' || status == 'arrived') {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (status == 'accepted') ...[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.directions_car, size: 18),
+              label: const Text('Start Journey'),
+              onPressed: () => _updateRequestStatus(context, docId, 'on_the_way'),
+            ),
+            const SizedBox(width: 8),
+          ] else if (status == 'on_the_way') ...[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.place, size: 18),
+              label: const Text('Mark Arrived'),
+              onPressed: () => _updateRequestStatus(context, docId, 'arrived'),
+            ),
+            const SizedBox(width: 8),
+          ],
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Mark as Complete'),
+            onPressed: () async {
+              final res = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => CreateBillingScreen(requestId: docId)),
+              );
+              if (res == true && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Payment request sent')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          ),
+        ],
       );
     } else {
       return const Align(
@@ -890,142 +1210,211 @@ class _CustomerDetailsSection extends StatelessWidget {
               .whereType<String>()),
         ];
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.grey.shade300,
-                  backgroundImage: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
-                      ? NetworkImage(profileImageUrl!)
-                      : null,
-                  child: (profileImageUrl == null || profileImageUrl!.isEmpty)
-                      ? const Icon(Icons.person, color: Colors.white)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (email != null && email!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2.0),
-                          child: Text(email!, style: TextStyle(color: Colors.grey[700], fontSize: 13), overflow: TextOverflow.ellipsis),
-                        ),
-                      if (phone != null && phone!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2.0),
-                          child: Text(phone!, style: TextStyle(color: Colors.grey[700], fontSize: 13), overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if ((address != null && address!.isNotEmpty) || geo != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      (address != null && address!.isNotEmpty)
-                          ? address!
-                          : 'Location available',
-                      style: const TextStyle(fontSize: 15),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'View on map',
-                    icon: const Icon(Icons.map_outlined),
-                    color: Colors.deepPurple,
-                    onPressed: () => _openInMaps(context, geo: geo, address: address ?? ''),
-                  ),
-                ],
-              ),
-            ],
-
-            // On-site Contact & Access
-            if ((contactName != null && contactName.isNotEmpty) ||
-                (contactPhone != null && contactPhone.isNotEmpty) ||
-                (accessNotes != null && accessNotes.trim().isNotEmpty)) ...[
-              const SizedBox(height: 6),
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.person_outline, size: 16, color: Colors.grey[700]),
-                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: Colors.grey.shade300,
+                    backgroundImage: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
+                        ? NetworkImage(profileImageUrl!)
+                        : null,
+                    child: (profileImageUrl == null || profileImageUrl!.isEmpty)
+                        ? const Icon(Icons.person, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (contactName != null && contactName.isNotEmpty)
-                          Text('Contact: $contactName', style: const TextStyle(fontSize: 14)),
-                        if (contactPhone != null && contactPhone.isNotEmpty)
-                          Text('Phone: $contactPhone', style: const TextStyle(fontSize: 14)),
-                        if (accessNotes != null && accessNotes.trim().isNotEmpty)
-                          Text('Access: $accessNotes', style: const TextStyle(fontSize: 14)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                displayName,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (phone != null && phone!.isNotEmpty)
+                              IconButton(
+                                tooltip: 'Call',
+                                icon: const Icon(Icons.call),
+                                color: Colors.deepPurple,
+                                onPressed: () => _callPhone(phone!),
+                              ),
+                            if (email != null && email!.isNotEmpty)
+                              IconButton(
+                                tooltip: 'Email',
+                                icon: const Icon(Icons.email_outlined),
+                                color: Colors.deepPurple,
+                                onPressed: () => _emailUser(email!),
+                              ),
+                          ],
+                        ),
+                        if (email != null && email!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2.0),
+                            child: Text(email!, style: TextStyle(color: Colors.grey[700], fontSize: 13), overflow: TextOverflow.ellipsis),
+                          ),
+                        if (phone != null && phone!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2.0),
+                            child: Text(phone!, style: TextStyle(color: Colors.grey[700], fontSize: 13), overflow: TextOverflow.ellipsis),
+                          ),
                       ],
                     ),
                   ),
                 ],
               ),
-            ],
-
-            // Job details: instructions, estimated days, attachments count/preview
-            if ((instructions != null && instructions.trim().isNotEmpty) ||
-                estimatedDays != null ||
-                attachUrls.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.build_outlined, size: 16, color: Colors.grey[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (estimatedDays != null)
-                          Text('Estimated: $estimatedDays day(s)', style: const TextStyle(fontSize: 14)),
-                        if (instructions != null && instructions.trim().isNotEmpty)
-                          Text('Instructions: $instructions', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
-                        if (attachUrls.isNotEmpty) ...[
+              if ((address != null && address!.isNotEmpty) || geo != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2.0),
+                      child: Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[700]),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (address != null && address!.isNotEmpty)
+                                ? address!
+                                : 'Location available',
+                            style: const TextStyle(fontSize: 14),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           const SizedBox(height: 4),
                           SizedBox(
-                            height: 60,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemBuilder: (c, i) => ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: Image.network(attachUrls[i], height: 60, width: 60, fit: BoxFit.cover),
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openInMaps(context, geo: geo, address: address ?? ''),
+                              icon: const Icon(Icons.map_outlined, size: 16),
+                              label: const Text('View on Map', style: TextStyle(fontSize: 13)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.deepPurple,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 32),
+                                side: BorderSide(color: Colors.deepPurple.shade200),
                               ),
-                              separatorBuilder: (c, i) => const SizedBox(width: 6),
-                              itemCount: attachUrls.length.clamp(0, 10),
                             ),
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
+              if ((contactName != null && contactName.isNotEmpty) ||
+                  (contactPhone != null && contactPhone.isNotEmpty) ||
+                  (accessNotes != null && accessNotes.trim().isNotEmpty)) ...[
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.person_outline, size: 16, color: Colors.grey[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (contactName != null && contactName.isNotEmpty)
+                            Text('On-site contact: $contactName', style: const TextStyle(fontSize: 14)),
+                          if (contactPhone != null && contactPhone.isNotEmpty)
+                            Row(
+                              children: [
+                                Expanded(child: Text('Phone: $contactPhone', style: const TextStyle(fontSize: 14))),
+                                TextButton(
+                                  onPressed: () => _callPhone(contactPhone!),
+                                  child: const Text('Call'),
+                                ),
+                              ],
+                            ),
+                          if (accessNotes != null && accessNotes.trim().isNotEmpty)
+                            Text('Access: $accessNotes', style: const TextStyle(fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if ((instructions != null && instructions.trim().isNotEmpty) ||
+                  estimatedDays != null ||
+                  attachUrls.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.build_outlined, size: 16, color: Colors.grey[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (estimatedDays != null)
+                            Text('Estimated: $estimatedDays day(s)', style: const TextStyle(fontSize: 14)),
+                          if (instructions != null && instructions.trim().isNotEmpty)
+                            Text('Instructions: $instructions', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+                          if (attachUrls.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 64,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemBuilder: (c, i) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(attachUrls[i], height: 64, width: 64, fit: BoxFit.cover),
+                                ),
+                                separatorBuilder: (c, i) => const SizedBox(width: 8),
+                                itemCount: attachUrls.length.clamp(0, 10),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
+  }
+
+  Future<void> _callPhone(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _emailUser(String email) async {
+    final uri = Uri.parse('mailto:$email');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _openInMaps(BuildContext context, {GeoPoint? geo, String? address}) async {
@@ -1092,23 +1481,56 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05), 
+            blurRadius: 8, 
+            offset: const Offset(0, 2)
+          )
+        ],
+      ),
+      constraints: const BoxConstraints(
+        minHeight: 60,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 36, color: color),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(4),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14), overflow: TextOverflow.ellipsis),
+                Text(
+                  value, 
+                  style: const TextStyle(
+                    fontSize: 15, 
+                    fontWeight: FontWeight.bold,
+                    height: 1.1,
+                  ), 
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title, 
+                  style: TextStyle(
+                    color: Colors.grey[600], 
+                    fontSize: 10,
+                    height: 1.1,
+                  ), 
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ],
             ),
           ),
@@ -1117,6 +1539,7 @@ class _InfoCard extends StatelessWidget {
     );
   }
 }
+
 class _ActionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1130,18 +1553,36 @@ class _ActionCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(radius: 30, backgroundColor: color.withOpacity(0.1), child: Icon(icon, size: 30, color: color)),
-            const SizedBox(height: 16),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, height: 1.2)),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 22, color: color),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title, 
+              textAlign: TextAlign.center, 
+              style: const TextStyle(
+                fontWeight: FontWeight.w500, 
+                fontSize: 12, 
+                height: 1.1,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
