@@ -1,5 +1,6 @@
 // lib/dashboards/serviceprovider_dashboard.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../create_service_screen.dart';
 import '../manage_services_screen.dart';
+import '../edit_service_screen.dart';
 import '../service_provider_profile_screen.dart';
 import '../map_webview_screen.dart';
 import '../pending_requests_screen.dart';
@@ -23,6 +25,647 @@ class ServiceProviderDashboard extends StatefulWidget {
 
   @override
   State<ServiceProviderDashboard> createState() => _ServiceProviderDashboardState();
+}
+
+class ServiceImageViewerScreen extends StatelessWidget {
+  final String imageUrl;
+  final String title;
+  final String? serviceId;
+  const ServiceImageViewerScreen({super.key, required this.imageUrl, required this.title, this.serviceId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: Colors.deepPurple,
+        actions: [
+          if (serviceId != null && serviceId!.isNotEmpty)
+            IconButton(
+              tooltip: 'Edit Service',
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EditServiceScreen(serviceId: serviceId!)),
+                );
+              },
+            ),
+        ],
+      ),
+      backgroundColor: Colors.black,
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.7,
+          maxScale: 4.0,
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const Center(child: CircularProgressIndicator());
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return const Center(
+                child: Icon(Icons.broken_image, color: Colors.white70, size: 64),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedServicesCarousel extends StatefulWidget {
+  const _FeaturedServicesCarousel();
+  @override
+  State<_FeaturedServicesCarousel> createState() => _FeaturedServicesCarouselState();
+}
+
+class _FeaturedServicesCarouselState extends State<_FeaturedServicesCarousel> {
+  late final PageController _pageController;
+  int _current = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.88);
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!_pageController.hasClients) return;
+      final next = _current + 1;
+      _pageController.animateToPage(next, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
+    final stream = FirebaseFirestore.instance
+        .collection('services')
+        .where('providerId', isEqualTo: uid)
+        .limit(10)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        List<Map<String, dynamic>> items = [];
+        if (snapshot.hasData) {
+          items = snapshot.data!.docs.map((d) {
+            final m = d.data() as Map<String, dynamic>;
+            return {
+              'id': d.id,
+              'name': (m['serviceName'] as String?) ?? (m['name'] as String?) ?? 'Service',
+              'imageUrl': (m['serviceImageUrl'] as String?) ?? (m['imageUrl'] as String?),
+            };
+          }).toList();
+        }
+
+        if (items.isEmpty) {
+          items = [
+            {'name': 'Delight your customers', 'imageUrl': null, 'icon': Icons.emoji_events},
+            {'name': 'Showcase your best work', 'imageUrl': null, 'icon': Icons.brush},
+            {'name': 'Grow with on-time delivery', 'imageUrl': null, 'icon': Icons.trending_up},
+          ];
+        }
+
+        return Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (i) => setState(() => _current = i % items.length),
+                itemBuilder: (context, index) {
+                  final data = items[index % items.length];
+                  final imageUrl = data['imageUrl'] as String?;
+                  final title = (data['name'] as String?) ?? 'Service';
+                  final String? id = data['id'] as String?;
+
+                  return AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      double value = 1.0;
+                      if (_pageController.position.haveDimensions) {
+                        final double page = (_pageController.page ?? _pageController.initialPage.toDouble());
+                        final double delta = page - index.toDouble();
+                        value = (1 - (delta.abs() * 0.08)).clamp(0.92, 1.0);
+                      }
+                      return Transform.scale(
+                        scale: value,
+                        child: child,
+                      );
+                    },
+                    child: _CarouselCard(
+                      title: title,
+                      imageUrl: imageUrl,
+                      onTap: () {
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ServiceImageViewerScreen(
+                                imageUrl: imageUrl,
+                                title: title,
+                                serviceId: id,
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (id != null && id.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => EditServiceScreen(serviceId: id)),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ManageServicesScreen()),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+                itemCount: items.length + 10000,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _DotsIndicator(count: items.length, current: _current % items.length),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CarouselCard extends StatelessWidget {
+  final String title;
+  final String? imageUrl;
+  final IconData? fallbackIcon;
+  final VoidCallback? onTap;
+  const _CarouselCard({required this.title, required this.imageUrl, this.fallbackIcon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 4)),
+            ],
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple, Colors.purpleAccent],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Stack(
+            children: [
+              if (imageUrl != null && imageUrl!.isNotEmpty)
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => Container(color: Colors.deepPurple.shade200.withOpacity(0.25)),
+                      loadingBuilder: (c, w, p) => p == null ? w : Container(color: Colors.deepPurple.shade200.withOpacity(0.15)),
+                    ),
+                  ),
+                ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.45)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white.withOpacity(0.85),
+                      child: Icon(fallbackIcon ?? Icons.home_repair_service, color: Colors.deepPurple),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: onTap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DotsIndicator extends StatelessWidget {
+  final int count;
+  final int current;
+  const _DotsIndicator({required this.count, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (i) {
+        final active = i == current;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: active ? 18 : 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: active ? Colors.deepPurple : Colors.deepPurple.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class ProviderPaymentsScreen extends StatelessWidget {
+  const ProviderPaymentsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Payments'),
+        backgroundColor: Colors.deepPurple,
+      ),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: const [
+          _ProviderPaymentsWidget(),
+          SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderPaymentsWidget extends StatefulWidget {
+  const _ProviderPaymentsWidget();
+  @override
+  State<_ProviderPaymentsWidget> createState() => _ProviderPaymentsWidgetState();
+}
+
+class _ProviderPaymentsWidgetState extends State<_ProviderPaymentsWidget> {
+  String _filter = 'all';
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    final stream = FirebaseFirestore.instance
+        .collection('serviceRequests')
+        .where('providerId', isEqualTo: uid)
+        .snapshots();
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+        child: Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.deepPurple, Colors.purple.shade400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.payments, color: Colors.white),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Payments',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PaymentKpis(providerId: uid),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip('all', 'All'),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('payment_requested', 'Pending'),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('paid', 'Received'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: stream,
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.0),
+                            child: LinearProgressIndicator(minHeight: 2),
+                          );
+                        }
+                        final allDocs = snap.data?.docs ?? [];
+                        final docs = allDocs.where((d) {
+                          final m = d.data() as Map<String, dynamic>;
+                          final st = (m['status'] as String?) ?? 'pending';
+                          if (_filter == 'all') return st == 'payment_requested' || st == 'paid';
+                          return st == _filter;
+                        }).toList();
+
+                        if (docs.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
+                            child: Text('No payments found.'),
+                          );
+                        }
+
+                        docs.sort((a, b) {
+                          final ma = a.data() as Map<String, dynamic>;
+                          final mb = b.data() as Map<String, dynamic>;
+                          final ta = ma['paymentRequestedAt'] ?? ma['completedAt'] ?? ma['bookingTimestamp'];
+                          final tb = mb['paymentRequestedAt'] ?? mb['completedAt'] ?? mb['bookingTimestamp'];
+                          final da = ta is Timestamp ? ta.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                          final db = tb is Timestamp ? tb.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                          return db.compareTo(da);
+                        });
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: docs.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, i) {
+                            final doc = docs[i];
+                            final data = doc.data() as Map<String, dynamic>;
+                            return _PaymentCard(docId: doc.id, data: data);
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String val, String label) {
+    final selected = _filter == val;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _filter = val),
+      selectedColor: Colors.deepPurple.withOpacity(0.15),
+      labelStyle: TextStyle(color: selected ? Colors.deepPurple : Colors.black87, fontWeight: FontWeight.w600),
+      shape: StadiumBorder(side: BorderSide(color: selected ? Colors.deepPurple : Colors.grey.shade400)),
+    );
+  }
+}
+
+class _PaymentKpis extends StatelessWidget {
+  final String providerId;
+  const _PaymentKpis({required this.providerId});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final firstOfMonth = DateTime(now.year, now.month, 1);
+    final nextMonth = DateTime(now.month == 12 ? now.year + 1 : now.year, now.month == 12 ? 1 : now.month + 1, 1);
+
+    final stream = FirebaseFirestore.instance
+        .collection('serviceRequests')
+        .where('providerId', isEqualTo: providerId)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        double pending = 0.0;
+        double receivedMonth = 0.0;
+        int pendingCount = 0;
+        int receivedCount = 0;
+        if (snapshot.hasData) {
+          for (final d in snapshot.data!.docs) {
+            final m = d.data() as Map<String, dynamic>;
+            final st = (m['status'] as String?) ?? 'pending';
+            final amt = (m['finalAmount'] as num?)?.toDouble() ?? (m['quotedAmount'] as num?)?.toDouble() ?? 0.0;
+            if (st == 'payment_requested') {
+              pending += amt;
+              pendingCount++;
+            } else if (st == 'paid') {
+              receivedCount++;
+              final ts = m['paidAt'];
+              final dt = ts is Timestamp ? ts.toDate() : null;
+              if (dt != null && dt.isAfter(firstOfMonth) && dt.isBefore(nextMonth)) {
+                receivedMonth += amt;
+              }
+            }
+          }
+        }
+
+        return GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 2.5,
+          ),
+          children: [
+            _InfoCard(title: 'Pending Amount', value: '₹ ${pending.toStringAsFixed(2)} (${pendingCount})', icon: Icons.hourglass_bottom, color: Colors.orange),
+            _InfoCard(title: 'Received (This Month)', value: '₹ ${receivedMonth.toStringAsFixed(2)} (${receivedCount})', icon: Icons.account_balance_wallet, color: Colors.green),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PaymentCard extends StatelessWidget {
+  final String docId;
+  final Map<String, dynamic> data;
+  const _PaymentCard({required this.docId, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final serviceName = (data['serviceName'] as String?) ?? 'Service';
+    final customerName = (data['customerName'] as String?) ?? 'Customer';
+    final parts = (data['parts'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+    final serviceCharge = (data['serviceCharge'] as num?)?.toDouble() ?? 0.0;
+    final finalAmount = (data['finalAmount'] as num?)?.toDouble() ?? (serviceCharge + parts.fold<double>(0.0, (s, p) => s + ((p['price'] as num?)?.toDouble() ?? 0.0)));
+    final status = (data['status'] as String?) ?? 'pending';
+    final preq = data['paymentRequestedAt'];
+    final paidAt = data['paidAt'];
+    final reqTime = preq is Timestamp ? preq.toDate() : null;
+    final paidTime = paidAt is Timestamp ? paidAt.toDate() : null;
+    final method = (data['paymentMethod'] as String?) ?? '';
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => BookingDetailScreen(requestId: docId)),
+        );
+      },
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(serviceName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text(customerName, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  _PaymentStatusChip(status: status),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
+                  Text('₹ ${finalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+              if (method.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.payments, size: 14, color: Colors.deepPurple),
+                    const SizedBox(width: 6),
+                    Text(method.toUpperCase(), style: const TextStyle(fontSize: 12, color: Colors.deepPurple, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 6),
+              if (status == 'payment_requested' && reqTime != null)
+                Text('Requested ' + DateFormat.yMMMd().add_jm().format(reqTime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              if (status == 'paid' && paidTime != null)
+                Text('Paid ' + DateFormat.yMMMd().add_jm().format(paidTime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentStatusChip extends StatelessWidget {
+  final String status;
+  const _PaymentStatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String label;
+    switch (status) {
+      case 'payment_requested':
+        color = Colors.orange;
+        label = 'Pending';
+        break;
+      case 'paid':
+        color = Colors.green;
+        label = 'Received';
+        break;
+      default:
+        color = Colors.grey;
+        label = status;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+    );
+  }
 }
 
 class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
@@ -244,6 +887,13 @@ class _DashboardHomeTab extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 _buildCurvedHeader(context),
+                _buildSectionTitle("Featured Services"),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 180,
+                    child: _FeaturedServicesCarousel(),
+                  ),
+                ),
                 _buildSectionTitle("At a Glance"),
                 _buildKpiGrid(),
                 _buildSectionTitle("Performance"),
@@ -492,6 +1142,12 @@ class _DashboardHomeTab extends StatelessWidget {
         'icon': Icons.access_time_filled,
         'color': Colors.indigo,
         'route': const OnTimeBookingsScreen(),
+      },
+      {
+        'title': 'Payments',
+        'icon': Icons.payments,
+        'color': Colors.deepPurple,
+        'route': const ProviderPaymentsScreen(),
       },
     ];
 

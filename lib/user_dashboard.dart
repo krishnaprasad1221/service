@@ -12,6 +12,7 @@ import 'package:serviceprovider/my_requests_screen.dart';
 import 'package:serviceprovider/payment_history_screen.dart';
 import 'package:serviceprovider/service_search_screen.dart';
 import 'package:serviceprovider/customer_notifications_screen.dart';
+import 'package:serviceprovider/customer_view_service_screen.dart';
 // Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
@@ -19,6 +20,248 @@ class UserDashboard extends StatefulWidget {
 
   @override
   State<UserDashboard> createState() => _UserDashboardState();
+}
+
+class _FeaturedForYouCarousel extends StatefulWidget {
+  @override
+  State<_FeaturedForYouCarousel> createState() => _FeaturedForYouCarouselState();
+}
+
+class _FeaturedForYouCarouselState extends State<_FeaturedForYouCarousel> {
+  late final PageController _pageController;
+  int _current = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.88);
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!_pageController.hasClients) return;
+      final next = _current + 1;
+      _pageController.animateToPage(next,
+          duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Pull a few popular services for all users; keep it light
+    final stream = FirebaseFirestore.instance
+        .collection('services')
+        .limit(10)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        // Hide kp1-kp4 assets; show only real service images
+        List<Map<String, dynamic>> items = [];
+        if (snapshot.hasData) {
+          final remote = snapshot.data!.docs.map((d) {
+            final m = d.data() as Map<String, dynamic>;
+            return {
+              'id': d.id,
+              'name': (m['serviceName'] as String?) ?? (m['name'] as String?) ?? 'Service',
+              'imageUrl': (m['serviceImageUrl'] as String?) ?? (m['imageUrl'] as String?),
+              'isAsset': false,
+            };
+          }).toList();
+          items.addAll(remote);
+        }
+
+        if (items.isEmpty) {
+          items = [
+            {'name': 'Book top-rated services', 'imageUrl': null},
+            {'name': 'Fast response nearby', 'imageUrl': null},
+            {'name': 'Great prices this week', 'imageUrl': null},
+          ];
+        }
+
+        return Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (i) => setState(() => _current = i % items.length),
+                itemBuilder: (context, index) {
+                  final data = items[index % items.length];
+                  final imageUrl = data['imageUrl'] as String?;
+                  final title = (data['name'] as String?) ?? 'Service';
+                  final bool isAsset = (data['isAsset'] as bool?) ?? false;
+                  final String? id = data['id'] as String?;
+
+                  return AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      double value = 1.0;
+                      if (_pageController.position.haveDimensions) {
+                        final double page = (_pageController.page ?? _pageController.initialPage.toDouble());
+                        final double delta = page - index.toDouble();
+                        value = (1 - (delta.abs() * 0.08)).clamp(0.92, 1.0);
+                      }
+                      return Transform.scale(
+                        scale: value,
+                        child: child,
+                      );
+                    },
+                    child: _CustomerCarouselCard(
+                      title: title,
+                      imageUrl: imageUrl,
+                      isAsset: isAsset,
+                      onTap: () {
+                        if (id != null && id.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => CustomerViewServiceScreen(serviceId: id)),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ViewServicesScreen()),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+                itemCount: items.length + 10000,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _CuDotsIndicator(count: items.length, current: _current % items.length),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CustomerCarouselCard extends StatelessWidget {
+  final String title;
+  final String? imageUrl;
+  final bool isAsset;
+  final VoidCallback? onTap;
+  const _CustomerCarouselCard({required this.title, required this.imageUrl, this.isAsset = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 4)),
+            ],
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple.shade400, Colors.purple.shade300],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Stack(
+            children: [
+              if (imageUrl != null && imageUrl!.isNotEmpty)
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: isAsset
+                        ? Image.asset(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Container(color: Colors.deepPurple.shade200.withOpacity(0.25)),
+                          )
+                        : Image.network(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Container(color: Colors.deepPurple.shade200.withOpacity(0.25)),
+                            loadingBuilder: (c, w, p) => p == null ? w : Container(color: Colors.deepPurple.shade200.withOpacity(0.15)),
+                          ),
+                  ),
+                ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: [Colors.black.withOpacity(0.0), Colors.black.withOpacity(0.45)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white.withOpacity(0.85),
+                      child: const Icon(Icons.local_offer, color: Colors.deepPurple),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CuDotsIndicator extends StatelessWidget {
+  final int count;
+  final int current;
+  const _CuDotsIndicator({required this.count, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (i) {
+        final active = i == current;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: active ? 18 : 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: active ? Colors.deepPurple : Colors.deepPurple.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        );
+      }),
+    );
+  }
 }
 
 
@@ -218,6 +461,13 @@ class _UserDashboardState extends State<UserDashboard> {
     return CustomScrollView(
       slivers: [
         _buildHeader(),
+        _buildSectionTitle("Featured"),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 180,
+            child: _FeaturedForYouCarousel(),
+          ),
+        ),
         _buildSectionTitle("Categories"),
         _buildCategoryList(),
         _buildSectionTitle("Quick Actions"),

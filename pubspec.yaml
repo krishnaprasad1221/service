@@ -74,6 +74,10 @@ flutter:
     - assets/request_icon.png
     - assets/profile_icon.png
     - assets/g-logo.png
+    - assets/kp1.webp
+    - assets/kp2.webp
+    - assets/kp3.webp
+    - assets/kp4.webp
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:serviceprovider/rate_review_screen.dart';
 
 class PaymentHistoryScreen extends StatelessWidget {
   const PaymentHistoryScreen({super.key});
@@ -165,7 +166,7 @@ class _BillCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _openRazorpay(context),
+                  onPressed: () => _onPayNowPressed(context),
                   icon: const Icon(Icons.payment),
                   label: const Text('Pay Now'),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -177,10 +178,71 @@ class _BillCard extends StatelessWidget {
     );
   }
 
+  Future<void> _onPayNowPressed(BuildContext context) async {
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Choose Payment Method', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet, color: Colors.green),
+                  title: const Text('Online Payment'),
+                  subtitle: const Text('Pay securely using Razorpay'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openRazorpay(context);
+                  },
+                ),
+                const Divider(height: 10),
+                ListTile(
+                  leading: const Icon(Icons.money_rounded, color: Colors.orange),
+                  title: const Text('Cash'),
+                  subtitle: const Text('Pay cash directly to the service provider'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _confirmCashPayment(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmCashPayment(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          title: const Text('Confirm Cash Payment'),
+          content: Text('Confirm that you have paid ₹ ${finalAmount.toStringAsFixed(2)} in cash to $providerName for $serviceName.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dCtx).pop(false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.of(dCtx).pop(true), child: const Text('Confirm')),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _markAsPaidAndNotify(context, paymentMethod: 'cash');
+    }
+  }
+
   Future<void> _openRazorpay(BuildContext context) async {
     final razorpay = Razorpay();
     void handleSuccess(PaymentSuccessResponse response) async {
-      await _markAsPaidAndNotify(context);
+      await _markAsPaidAndNotify(context, paymentMethod: 'online');
       razorpay.clear();
     }
 
@@ -233,13 +295,18 @@ class _BillCard extends StatelessWidget {
     }
   }
 
-  Future<void> _markAsPaidAndNotify(BuildContext context) async {
+  Future<void> _markAsPaidAndNotify(BuildContext context, {String? paymentMethod}) async {
     final reqRef = FirebaseFirestore.instance.collection('serviceRequests').doc(requestId);
     try {
-      await reqRef.update({
+      final update = {
         'status': 'paid',
         'paidAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (paymentMethod != null) {
+        // Record the method used without changing existing status flow
+        (update as Map<String, dynamic>)['paymentMethod'] = paymentMethod;
+      }
+      await reqRef.update(update);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to mark paid: $e')));
@@ -258,16 +325,31 @@ class _BillCard extends StatelessWidget {
           'createdBy': FirebaseAuth.instance.currentUser?.uid,
           'type': 'booking_status',
           'title': 'Payment received',
-          'body': 'Payment received for $sName',
+          'body': paymentMethod == 'cash' ? 'Cash payment received for $sName' : 'Payment received for $sName',
           'relatedId': requestId,
           'isRead': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+
+      // Navigate to rating & review immediately after a successful payment
+      if (context.mounted && providerId != null && providerId.isNotEmpty) {
+        // Await the review screen; it will handle duplicate prevention itself
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RateAndReviewScreen(
+              requestId: requestId,
+              providerId: providerId,
+              serviceName: sName,
+            ),
+          ),
+        );
+      }
     } catch (_) {}
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment successful')));
+      final msg = paymentMethod == 'cash' ? 'Cash payment confirmed' : 'Payment successful';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 }

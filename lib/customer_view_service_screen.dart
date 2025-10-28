@@ -3,11 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:serviceprovider/booking_confirmation_screen.dart'; // <-- IMPORT the new screen
+import 'package:url_launcher/url_launcher.dart';
 
 class CustomerViewServiceScreen extends StatelessWidget {
   final String serviceId;
+  final ValueNotifier<bool> _termsAccepted = ValueNotifier<bool>(false);
 
-  const CustomerViewServiceScreen({super.key, required this.serviceId});
+  CustomerViewServiceScreen({super.key, required this.serviceId});
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +51,11 @@ class CustomerViewServiceScreen extends StatelessWidget {
                 expandedHeight: 250,
                 pinned: true,
                 backgroundColor: Colors.deepPurple,
+                elevation: 2,
+                shadowColor: Colors.black.withOpacity(0.1),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                ),
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(
                     serviceName,
@@ -66,7 +73,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
                       else
                         const Center(child: Icon(Icons.work, size: 60, color: Colors.white54)),
                       Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           gradient: LinearGradient(
                             colors: [Colors.black54, Colors.transparent],
                             begin: Alignment.bottomCenter,
@@ -87,6 +94,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: 16),
                   _buildOverviewCard(
+                    context: context,
                     categoryName: categoryName,
                     subCategoryNames: subCategoryNames,
                     isAvailable: isAvailable,
@@ -106,10 +114,10 @@ class CustomerViewServiceScreen extends StatelessWidget {
                   ],
                   if (serviceAreas.isNotEmpty) ...[
                     _buildSectionTitle("Service Areas"),
-                    _buildServiceAreasCard(serviceAreas),
+                    _buildServiceAreasCard(context, serviceAreas),
                   ],
                   if (terms != null && terms.isNotEmpty) ...[
-                    _buildSectionTitle("Terms"),
+                    _buildTermsHeader(context),
                     _buildTermsCard(terms),
                   ],
                   const SizedBox(height: 30),
@@ -129,11 +137,15 @@ class CustomerViewServiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOverviewCard({String? categoryName, List<String>? subCategoryNames, bool? isAvailable}) {
+  Widget _buildOverviewCard({required BuildContext context, String? categoryName, List<String>? subCategoryNames, bool? isAvailable}) {
+    final subs = (subCategoryNames ?? const <String>[]).where((s) => s.trim().isNotEmpty).toList();
+    final visible = subs.take(6).toList();
+    final extraCount = subs.length - visible.length;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -143,32 +155,123 @@ class CustomerViewServiceScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.category_outlined, size: 18, color: Colors.deepPurple),
                 const SizedBox(width: 6),
-                Expanded(
+                const Expanded(
                   child: Text(
-                    categoryName ?? 'Uncategorized',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    maxLines: 1,
+                    'Service Category',
+                    style: TextStyle(fontWeight: FontWeight.w800),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (subs.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${subs.length}', style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ),
               ],
             ),
-            if (subCategoryNames != null && subCategoryNames.isNotEmpty) ...[
-              const SizedBox(height: 10),
+            const SizedBox(height: 10),
+            // Prominent category pill
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Colors.deepPurple.shade400, Colors.purple.shade400]),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.label_important, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    (categoryName ?? 'Uncategorized'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (subs.isNotEmpty) ...[
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
-                runSpacing: 0,
-                children: subCategoryNames.take(3).map((s) => Chip(
-                      label: Text(s, overflow: TextOverflow.ellipsis),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                    )).toList(),
+                runSpacing: 8,
+                children: [
+                  ...visible.map((s) => Chip(
+                        avatar: const Icon(Icons.local_offer, size: 16, color: Colors.deepPurple),
+                        label: Text(s, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        backgroundColor: Colors.deepPurple.shade50,
+                      )),
+                  if (extraCount > 0)
+                    ActionChip(
+                      avatar: const Icon(Icons.more_horiz, size: 16, color: Colors.deepPurple),
+                      label: Text('+$extraCount more'),
+                      onPressed: () => _showAllSubcategories(context, subs),
+                      backgroundColor: Colors.deepPurple.shade50,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                ],
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  void _showAllSubcategories(BuildContext context, List<String> subs) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.category_outlined, color: Colors.deepPurple),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('All Subcategories', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: subs.map((s) => Chip(
+                        avatar: const Icon(Icons.local_offer, size: 16, color: Colors.deepPurple),
+                        label: Text(s, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        backgroundColor: Colors.deepPurple.shade50,
+                      )).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -183,14 +286,64 @@ class CustomerViewServiceScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (phone != null && phone.isNotEmpty)
-              _infoRow(icon: Icons.phone, label: 'Phone', value: phone),
+              Row(
+                children: [
+                  const Icon(Icons.phone, size: 18, color: Colors.deepPurple),
+                  const SizedBox(width: 6),
+                  const Text('Phone', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(phone, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    tooltip: 'Call',
+                    icon: const Icon(Icons.call, color: Colors.green),
+                    onPressed: () => _launchPhone(phone),
+                  ),
+                  IconButton(
+                    tooltip: 'Message',
+                    icon: const Icon(Icons.sms_rounded, color: Colors.blueAccent),
+                    onPressed: () => _launchSms(phone),
+                  ),
+                ],
+              ),
             if (email != null && email.isNotEmpty) ...[
               const SizedBox(height: 8),
-              _infoRow(icon: Icons.email_outlined, label: 'Email', value: email),
+              Row(
+                children: [
+                  const Icon(Icons.email_outlined, size: 18, color: Colors.deepPurple),
+                  const SizedBox(width: 6),
+                  const Text('Email', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    tooltip: 'Send email',
+                    icon: const Icon(Icons.send_rounded, color: Colors.deepPurple),
+                    onPressed: () => _launchEmail(email),
+                  ),
+                ],
+              ),
             ],
             if (website != null && website.isNotEmpty) ...[
               const SizedBox(height: 8),
-              _infoRow(icon: Icons.link, label: 'Website', value: website),
+              Row(
+                children: [
+                  const Icon(Icons.link, size: 18, color: Colors.deepPurple),
+                  const SizedBox(width: 6),
+                  const Text('Website', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(website, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    tooltip: 'Open website',
+                    icon: const Icon(Icons.public, color: Colors.indigo),
+                    onPressed: () => _launchWebsite(website),
+                  ),
+                ],
+              ),
             ],
           ],
         ),
@@ -198,35 +351,207 @@ class CustomerViewServiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildServiceAreasCard(List<String> areas) {
+  Future<void> _launchPhone(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _launchSms(String phone) async {
+    final uri = Uri.parse('sms:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _launchEmail(String email) async {
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _launchWebsite(String url) async {
+    final fixed = _ensureHttp(url);
+    final uri = Uri.parse(fixed);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  String _ensureHttp(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return 'https://$url';
+  }
+
+  Widget _buildServiceAreasCard(BuildContext context, List<String> areas) {
+    final visible = areas.take(8).toList();
+    final extraCount = areas.length - visible.length;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 0,
-          children: areas.take(6).map((a) => Chip(
-                label: Text(a, overflow: TextOverflow.ellipsis),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              )).toList(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.map_rounded, size: 18, color: Colors.deepPurple),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Covered Areas',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text('${areas.length}', style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.w700, fontSize: 12)),
+                ),
+                if (extraCount > 0)
+                  TextButton(
+                    onPressed: () => _showAllAreas(context, areas),
+                    child: Text('View all', style: TextStyle(color: Colors.deepPurple.shade700, fontWeight: FontWeight.w600)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...visible.map((a) => Chip(
+                      avatar: const Icon(Icons.location_on, size: 16, color: Colors.deepPurple),
+                      label: Text(a, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      backgroundColor: Colors.deepPurple.shade50,
+                    )),
+                if (extraCount > 0)
+                  ActionChip(
+                    avatar: const Icon(Icons.more_horiz, size: 16, color: Colors.deepPurple),
+                    label: Text('+$extraCount more'),
+                    onPressed: () => _showAllAreas(context, areas),
+                    backgroundColor: Colors.deepPurple.shade50,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  void _showAllAreas(BuildContext context, List<String> areas) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.map_rounded, color: Colors.deepPurple),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('All Service Areas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: areas.map((a) => Chip(
+                        avatar: const Icon(Icons.location_on, size: 16, color: Colors.deepPurple),
+                        label: Text(a, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        backgroundColor: Colors.deepPurple.shade50,
+                      )).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildTermsCard(String terms) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Text(terms, style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.5)),
+        child: Text(
+          terms,
+          style: TextStyle(fontSize: 15, color: Colors.grey[800], height: 1.6),
+          textAlign: TextAlign.start,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTermsHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Terms & Conditions',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _termsAccepted,
+            builder: (_, accepted, __) {
+              return IconButton(
+                tooltip: accepted ? 'Accepted' : 'Accept terms',
+                onPressed: () {
+                  final next = !accepted;
+                  _termsAccepted.value = next;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(next ? 'Terms & Conditions accepted' : 'Terms & Conditions unaccepted')),
+                  );
+                },
+                icon: Icon(
+                  accepted ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                  color: accepted ? Colors.green : Colors.grey,
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -252,10 +577,15 @@ class CustomerViewServiceScreen extends StatelessWidget {
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
       child: Text(
         title,
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: Colors.grey[900],
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
@@ -263,11 +593,15 @@ class CustomerViewServiceScreen extends StatelessWidget {
   Widget _buildDescriptionCard(String description) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Text(description, style: TextStyle(fontSize: 16, color: Colors.grey[700], height: 1.5)),
+        child: Text(
+          description,
+          style: TextStyle(fontSize: 16, color: Colors.grey[800], height: 1.65),
+        ),
       ),
     );
   }
@@ -288,8 +622,9 @@ class CustomerViewServiceScreen extends StatelessWidget {
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 3,
+          shadowColor: Colors.black.withOpacity(0.06),
           child: ListTile(
             leading: CircleAvatar(
               radius: 25,
@@ -337,8 +672,9 @@ class CustomerViewServiceScreen extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -353,7 +689,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
             ),
             if (addressDisplay != null && addressDisplay.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(addressDisplay, style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+              Text(addressDisplay, style: TextStyle(fontSize: 14, color: Colors.grey[800])),
             ],
           ],
         ),
@@ -370,12 +706,14 @@ class CustomerViewServiceScreen extends StatelessWidget {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: ElevatedButton(
+      child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 4,
+          shadowColor: Colors.black.withOpacity(0.12),
         ),
         onPressed: () {
           // Navigate to the new screen, passing the required data
@@ -390,7 +728,8 @@ class CustomerViewServiceScreen extends StatelessWidget {
             ),
           );
         },
-        child: const Text("Book This Service", style: TextStyle(fontSize: 18)),
+        icon: const Icon(Icons.calendar_month_rounded),
+        label: const Text("Book This Service", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
       ),
     );
   }
