@@ -1508,6 +1508,7 @@ class _BookingList extends StatelessWidget {
     final int photoCount = (((data['imageUrls'] as List?)?.length) ?? 0) +
         (((data['attachments'] as List?)?.length) ?? 0);
 
+
     final String statusStr = (data['status'] as String?) ?? 'pending';
     final String? description = (data['description'] ?? data['notes'])?.toString();
     Color statusColor;
@@ -1607,9 +1608,9 @@ class _BookingList extends StatelessWidget {
                     children: [
                       const Icon(Icons.event, size: 18, color: Colors.black54),
                       const SizedBox(width: 6),
-                      Expanded(
-                        child: Text('$scheduledDateStr at $scheduledTimeStr',
-                            style: const TextStyle(fontSize: 14)),
+                      Text(
+                        'Scheduled: $scheduledDateStr at $scheduledTimeStr',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),

@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:flutter/services.dart';
 import 'service_preview_screen.dart';
 
 class CreateServiceScreen extends StatefulWidget {
@@ -483,7 +484,12 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
               TextFormField(
                 controller: _serviceNameController,
                 decoration: const InputDecoration(labelText: 'Service Name', border: OutlineInputBorder()),
-                validator: (v) => v!.isEmpty ? 'Please enter a service name' : null,
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return 'Please enter a service name';
+                  if (t.length < 3) return 'Minimum 3 characters';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               _buildCategoryDropdown(),
@@ -510,7 +516,12 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Short Description', border: OutlineInputBorder()),
                 maxLines: 3,
-                validator: (v) => v!.isEmpty ? 'Please enter a description' : null,
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return 'Please enter a description';
+                  if (t.length < 10) return 'Minimum 10 characters';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -523,12 +534,32 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
                 controller: _contactPhoneController,
                 decoration: const InputDecoration(labelText: 'Contact Phone (optional)', border: OutlineInputBorder()),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(15),
+                ],
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return null;
+                  final digits = t.replaceAll(RegExp(r'\D'), '');
+                  if (digits.length < 10 || digits.length > 15) {
+                    return 'Enter a valid phone (10-15 digits)';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _contactEmailController,
                 decoration: const InputDecoration(labelText: 'Contact Email (optional)', border: OutlineInputBorder()),
                 keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return null;
+                  final emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                  if (!emailRe.hasMatch(t)) return 'Enter a valid email';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(

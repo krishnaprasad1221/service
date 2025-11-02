@@ -33,7 +33,21 @@ class ViewServicesScreen extends StatelessWidget {
             );
           }
 
-          final services = snapshot.data!.docs;
+          // Filter out services with 'Uncategorized' category
+          final services = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final category = data['category'] as String?;
+            return category != 'Uncategorized' && category != 'uncategorized';
+          }).toList();
+
+          if (services.isEmpty) {
+            return const Center(
+              child: Text(
+                'No services available.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            );
+          }
 
           return GridView.builder(
             padding: const EdgeInsets.all(16.0),
@@ -220,46 +234,61 @@ class ServiceCard extends StatelessWidget {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(10.0),
+              padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     serviceName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  if (rating != null) Row(
+                  Row(
                     children: [
-                      ...List.generate(5, (i) {
-                        final r = rating!.clamp(0, 5);
-                        final whole = r.floor();
-                        final hasHalf = (r - whole) >= 0.5;
-                        if (i < whole) {
-                          return const Icon(Icons.star, size: 14, color: Colors.amber);
-                        } else if (i == whole && hasHalf) {
-                          return const Icon(Icons.star_half, size: 14, color: Colors.amber);
-                        } else {
-                          return const Icon(Icons.star_border, size: 14, color: Colors.amber);
-                        }
-                      }),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating!.toStringAsFixed(1) + (ratingCount != null ? ' (${ratingCount})' : ''),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500),
-                      ),
+                      if (rating != null) ...[
+                        ...List.generate(5, (i) {
+                          final r = rating!.clamp(0, 5);
+                          final whole = r.floor();
+                          final hasHalf = (r - whole) >= 0.5;
+                          if (i < whole) {
+                            return const Icon(Icons.star, size: 14, color: Colors.amber);
+                          } else if (i == whole && hasHalf) {
+                            return const Icon(Icons.star_half, size: 14, color: Colors.amber);
+                          } else {
+                            return const Icon(Icons.star_border, size: 14, color: Colors.amber);
+                          }
+                        }),
+                        const SizedBox(width: 4),
+                        Text(
+                          rating!.toStringAsFixed(1),
+                          style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.w600),
+                        ),
+                        if (ratingCount != null) ...[
+                          Text(
+                            ' (${ratingCount})',
+                            style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ] else ...[
+                        const Icon(Icons.star_border, size: 14, color: Colors.grey),
+                        const SizedBox(width: 2),
+                        Text(
+                          'No ratings',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                        ),
+                      ],
                     ],
                   ),
                   if (subCategoryNames != null && subCategoryNames!.isNotEmpty)
                     Wrap(
-                      spacing: 6,
+                      spacing: 4,
                       runSpacing: 0,
                       children: subCategoryNames!
                           .take(2)
                           .map((s) => Chip(
-                                label: Text(s, overflow: TextOverflow.ellipsis),
+                                label: Text(s, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
                                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
                                 padding: EdgeInsets.zero,
@@ -267,7 +296,7 @@ class ServiceCard extends StatelessWidget {
                           .toList(),
                     ),
                   if (location != null && location!.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         const Icon(Icons.place, size: 14, color: Colors.deepPurple),
@@ -283,12 +312,12 @@ class ServiceCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       ProviderInfoChip(providerId: providerId),
                       if (serviceType is String && (serviceType as String).isNotEmpty) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _ServiceTypeChip(type: serviceType as String),
                       ],
                     ],
