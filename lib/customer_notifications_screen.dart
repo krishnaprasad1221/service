@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'booking_detail_screen.dart';
+import 'rate_review_screen.dart';
 
 class CustomerNotificationsScreen extends StatefulWidget {
   const CustomerNotificationsScreen({super.key});
@@ -101,6 +102,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                 case 'payment_request':
                   leadingIcon = Icons.request_page; // provider requested payment
                   break;
+                case 'rating_request':
+                  leadingIcon = Icons.star_rate; // rate and review request
+                  break;
                 case 'system':
                   leadingIcon = Icons.info_outline;
                   break;
@@ -170,6 +174,25 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     if (!isRead) {
                       await doc.reference.update({'isRead': true});
                     }
+                    
+                    // Handle rating_request notification tap
+                    if (type == 'rating_request' && relatedId != null) {
+                      final providerId = data['providerId'] as String?;
+                      final serviceName = (data['serviceName'] as String?) ?? 'Service';
+                      if (providerId != null && context.mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RateAndReviewScreen(
+                              requestId: relatedId,
+                              providerId: providerId,
+                              serviceName: serviceName,
+                            ),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    
                     // Navigation to booking details intentionally disabled per requirements
                     return;
                   },

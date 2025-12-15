@@ -13,6 +13,7 @@ import 'package:serviceprovider/payment_history_screen.dart';
 import 'package:serviceprovider/service_search_screen.dart';
 import 'package:serviceprovider/customer_notifications_screen.dart';
 import 'package:serviceprovider/customer_view_service_screen.dart';
+import 'package:serviceprovider/self_fix_screen.dart';
 // Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
@@ -366,7 +367,7 @@ class _UserDashboardState extends State<UserDashboard> {
       // ignore errors for initial load
     } finally {
       _pages = [
-        _buildHomeContent(),
+        _buildHomeWithAssistant(),
         const MyRequestsScreen(),
         const ProfileScreen(),
       ];
@@ -454,6 +455,28 @@ class _UserDashboardState extends State<UserDashboard> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHomeWithAssistant() {
+    return Stack(
+      children: [
+        _buildHomeContent(),
+        Positioned(
+          right: 16,
+          bottom: 24,
+          child: _SelfFixAssistantButton(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SelfFixScreen(),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -735,3 +758,159 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 }
+
+class _SelfFixAssistantButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _SelfFixAssistantButton({required this.onTap});
+
+  @override
+  State<_SelfFixAssistantButton> createState() => _SelfFixAssistantButtonState();
+}
+
+class _SelfFixAssistantButtonState extends State<_SelfFixAssistantButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<Offset> _offsetAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 0.96, end: 1.04).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: const Offset(0, -0.02),
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.only(bottom: 6, right: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.bolt_rounded, size: 16, color: Colors.deepPurple),
+              SizedBox(width: 4),
+              Text(
+                'Self-fix assistant',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SlideTransition(
+          position: _offsetAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Colors.deepPurple.shade800, Colors.purple.shade400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withOpacity(0.6),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.9),
+                    width: 2.2,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white,
+                            Colors.deepPurple.shade50,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.smart_toy_rounded,
+                      color: Colors.deepPurple.shade500,
+                      size: 32,
+                    ),
+                    Positioned(
+                      bottom: 10,
+                      child: Container(
+                        width: 30,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.deepPurple.withOpacity(0.55),
+                              Colors.purple.withOpacity(0.25),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

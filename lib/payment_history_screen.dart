@@ -332,6 +332,23 @@ class _BillCard extends StatelessWidget {
         });
       }
 
+      // Create notification for customer to rate and review
+      final customerId = FirebaseAuth.instance.currentUser?.uid;
+      if (customerId != null) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'userId': customerId,
+          'createdBy': customerId,
+          'type': 'rating_request',
+          'title': 'Rate your service',
+          'body': 'How was your experience with $sName? Share your feedback.',
+          'relatedId': requestId,
+          'providerId': providerId,
+          'serviceName': sName,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       // Navigate to rating & review immediately after a successful payment
       if (context.mounted && providerId != null && providerId.isNotEmpty) {
         // Await the review screen; it will handle duplicate prevention itself

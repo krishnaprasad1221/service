@@ -92,7 +92,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
               ),
               SliverList(
                 delegate: SliverChildListDelegate([
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildOverviewCard(
                     context: context,
                     categoryName: categoryName,
@@ -120,14 +120,15 @@ class CustomerViewServiceScreen extends StatelessWidget {
                     _buildTermsHeader(context),
                     _buildTermsCard(terms),
                   ],
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 24),
                   _buildBookNowButton(
                     context: context,
                     serviceId: serviceId,
                     providerId: providerId,
                     serviceName: serviceName,
+                    requireTerms: (terms != null && terms.isNotEmpty),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 20),
                 ]),
               ),
             ],
@@ -577,7 +578,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Text(
         title,
         style: TextStyle(
@@ -703,6 +704,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
     required String serviceId,
     required String providerId,
     required String serviceName,
+    required bool requireTerms,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -716,6 +718,12 @@ class CustomerViewServiceScreen extends StatelessWidget {
           shadowColor: Colors.black.withOpacity(0.12),
         ),
         onPressed: () {
+          if (requireTerms && !_termsAccepted.value) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please accept the Terms & Conditions before booking.')),
+            );
+            return;
+          }
           // Navigate to the new screen, passing the required data
           Navigator.push(
             context,
