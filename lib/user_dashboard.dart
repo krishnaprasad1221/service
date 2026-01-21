@@ -14,6 +14,7 @@ import 'package:serviceprovider/service_search_screen.dart';
 import 'package:serviceprovider/customer_notifications_screen.dart';
 import 'package:serviceprovider/customer_view_service_screen.dart';
 import 'package:serviceprovider/self_fix_screen.dart';
+import 'package:serviceprovider/self_fix_chatbot_screen.dart';
 // Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
@@ -470,7 +471,7 @@ class _UserDashboardState extends State<UserDashboard> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const SelfFixScreen(),
+                  builder: (_) => const SelfFixChatbotScreen(),
                 ),
               );
             },

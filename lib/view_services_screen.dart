@@ -79,6 +79,7 @@ class ViewServicesScreen extends StatelessWidget {
                   );
                 },
                 child: ServiceCard(
+                  serviceId: serviceDoc.id,
                   serviceName: (serviceData['serviceName'] as String?) ?? 'No Name',
                   category: (serviceData['category'] as String?) ?? 'Uncategorized',
                   imageUrl: serviceData['serviceImageUrl'] as String?,
@@ -149,9 +150,139 @@ class _AvailabilityBadge extends StatelessWidget {
   }
 }
 
+class _ServiceRatingRow extends StatelessWidget {
+  final String serviceId;
+  final double? rating;
+  final int? ratingCount;
+
+  const _ServiceRatingRow({
+    required this.serviceId,
+    required this.rating,
+    required this.ratingCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (rating != null) {
+      return _buildStarsRow(context, rating!, ratingCount);
+    }
+
+    // Fallback: derive rating from serviceReviews collection when aggregate is missing.
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('serviceReviews')
+          .where('serviceId', isEqualTo: serviceId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: const [
+              Icon(Icons.star_border, size: 14, color: Colors.grey),
+              SizedBox(width: 4),
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.5),
+              ),
+            ],
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Row(
+            children: [
+              const Icon(Icons.star_border, size: 14, color: Colors.grey),
+              const SizedBox(width: 2),
+              Text(
+                'No ratings',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          );
+        }
+
+        double total = 0;
+        int count = 0;
+        for (final d in snapshot.data!.docs) {
+          final m = d.data() as Map<String, dynamic>;
+          final r = (m['rating'] as num?)?.toDouble();
+          if (r != null) {
+            total += r;
+            count++;
+          }
+        }
+
+        if (count == 0) {
+          return Row(
+            children: [
+              const Icon(Icons.star_border, size: 14, color: Colors.grey),
+              const SizedBox(width: 2),
+              Text(
+                'No ratings',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          );
+        }
+
+        final avg = total / count;
+        return _buildStarsRow(context, avg, count);
+      },
+    );
+  }
+
+  Widget _buildStarsRow(BuildContext context, double value, int? count) {
+    final r = value.clamp(0, 5);
+    final whole = r.floor();
+    final hasHalf = (r - whole) >= 0.5;
+
+    return Row(
+      children: [
+        ...List.generate(5, (i) {
+          if (i < whole) {
+            return const Icon(Icons.star, size: 14, color: Colors.amber);
+          } else if (i == whole && hasHalf) {
+            return const Icon(Icons.star_half, size: 14, color: Colors.amber);
+          } else {
+            return const Icon(Icons.star_border, size: 14, color: Colors.amber);
+          }
+        }),
+        const SizedBox(width: 4),
+        Text(
+          r.toStringAsFixed(1),
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.amber[700],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (count != null) ...[
+          Text(
+            ' ($count)',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 // --- The ServiceCard and ProviderInfoChip widgets remain unchanged below ---
 
 class ServiceCard extends StatelessWidget {
+  final String serviceId;
   final String serviceName;
   final String category;
   final String? imageUrl;
@@ -165,6 +296,7 @@ class ServiceCard extends StatelessWidget {
 
   const ServiceCard({
     super.key,
+    required this.serviceId,
     required this.serviceName,
     required this.category,
     this.imageUrl,
@@ -245,41 +377,10 @@ class ServiceCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (rating != null) ...[
-                        ...List.generate(5, (i) {
-                          final r = rating!.clamp(0, 5);
-                          final whole = r.floor();
-                          final hasHalf = (r - whole) >= 0.5;
-                          if (i < whole) {
-                            return const Icon(Icons.star, size: 14, color: Colors.amber);
-                          } else if (i == whole && hasHalf) {
-                            return const Icon(Icons.star_half, size: 14, color: Colors.amber);
-                          } else {
-                            return const Icon(Icons.star_border, size: 14, color: Colors.amber);
-                          }
-                        }),
-                        const SizedBox(width: 4),
-                        Text(
-                          rating!.toStringAsFixed(1),
-                          style: TextStyle(fontSize: 11, color: Colors.amber[700], fontWeight: FontWeight.w600),
-                        ),
-                        if (ratingCount != null) ...[
-                          Text(
-                            ' (${ratingCount})',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ] else ...[
-                        const Icon(Icons.star_border, size: 14, color: Colors.grey),
-                        const SizedBox(width: 2),
-                        Text(
-                          'No ratings',
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ],
+                  _ServiceRatingRow(
+                    serviceId: serviceId,
+                    rating: rating,
+                    ratingCount: ratingCount,
                   ),
                   if (subCategoryNames != null && subCategoryNames!.isNotEmpty)
                     Wrap(

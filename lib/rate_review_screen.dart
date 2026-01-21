@@ -83,6 +83,54 @@ class _RateAndReviewScreenState extends State<RateAndReviewScreen> {
         'reviewBy': uid,
       }, SetOptions(merge: true));
 
+      // After saving the review, update the corresponding service's aggregate rating.
+      try {
+        // 1. Find the underlying serviceId for this request.
+        final reqSnap = await FirebaseFirestore.instance
+            .collection('serviceRequests')
+            .doc(widget.requestId)
+            .get();
+        final reqData = reqSnap.data() as Map<String, dynamic>?;
+        final String? serviceId = reqData != null ? reqData['serviceId'] as String? : null;
+
+        if (serviceId != null && serviceId.isNotEmpty) {
+          // 2. Ensure each review knows which service it belongs to.
+          await reviewRef.set({
+            'serviceId': serviceId,
+          }, SetOptions(merge: true));
+
+          // 3. Recompute average rating and count for this service.
+          final reviewsSnap = await FirebaseFirestore.instance
+              .collection('serviceReviews')
+              .where('serviceId', isEqualTo: serviceId)
+              .get();
+
+          double total = 0;
+          int count = 0;
+          for (final d in reviewsSnap.docs) {
+            final m = d.data() as Map<String, dynamic>;
+            final r = (m['rating'] as num?)?.toDouble();
+            if (r != null) {
+              total += r;
+              count++;
+            }
+          }
+
+          if (count > 0) {
+            final double avg = total / count;
+            await FirebaseFirestore.instance
+                .collection('services')
+                .doc(serviceId)
+                .set({
+              'avgRating': avg,
+              'ratingCount': count,
+            }, SetOptions(merge: true));
+          }
+        }
+      } catch (_) {
+        // Swallow aggregation errors so rating submission UX is not blocked.
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thanks for your feedback!')));
       Navigator.of(context).pop(true);
