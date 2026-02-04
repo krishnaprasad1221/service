@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:ml_linalg/linalg.dart';
 
 class ArrivalPredictionModels {
   // Format: [hour_of_day, day_of_week, service_type(1-5), distance_km, 
@@ -148,7 +147,7 @@ class ArrivalPredictionModels {
   static double predictWithSVM(List<double> inputFeatures) {
     // Feature weights: [hour, day, service_type, distance, traffic]
     // Higher weights for service type and traffic
-    final weights = Vector.fromList([0.3, 0.2, 1.5, 0.8, 1.2]);
+    final weights = <double>[0.3, 0.2, 1.5, 0.8, 1.2];
     final bias = 10.0; // Base time
     
     // Apply feature scaling
@@ -163,10 +162,10 @@ class ArrivalPredictionModels {
     // Scale traffic (1-5 to 0-1)
     scaledFeatures[4] = (inputFeatures[4] - 1) / 4.0;
     
-    final features = Vector.fromList(scaledFeatures);
+    final features = List<double>.from(scaledFeatures);
     
-    // Calculate prediction with bias
-    double prediction = weights.dot(features) + bias;
+    // Calculate prediction with bias using a simple dot product
+    double prediction = _dot(weights, features) + bias;
     
     // Apply service type specific adjustment
     final serviceType = inputFeatures[2].toInt();
@@ -183,33 +182,33 @@ class ArrivalPredictionModels {
   static double predictWithNeuralNetwork(List<double> inputFeatures) {
     // Normalize input features
     final normalized = _normalizeFeatures(inputFeatures);
-    final input = Vector.fromList(normalized);
+    final input = List<double>.from(normalized);
     
     // First hidden layer (5 input features -> 4 hidden units)
-    final w1 = Matrix.fromRows([
+    final w1 = <List<double>>[
       [0.2, 0.3, 0.1, 0.4, 0.2],
       [0.1, 0.2, 0.3, 0.1, 0.3],
       [0.3, 0.1, 0.4, 0.2, 0.1],
       [0.1, 0.3, 0.2, 0.3, 0.2],
-    ]);
-    final b1 = Vector.fromList([0.1, 0.1, 0.1, 0.1]);
+    ];
+    final b1 = <double>[0.1, 0.1, 0.1, 0.1];
     
     // Second hidden layer (4 -> 3 hidden units)
-    final w2 = Matrix.fromRows([
+    final w2 = <List<double>>[
       [0.4, 0.3, 0.2, 0.1],
       [0.3, 0.2, 0.4, 0.3],
       [0.2, 0.4, 0.3, 0.2],
-    ]);
-    final b2 = Vector.fromList([0.1, 0.1, 0.1]);
+    ];
+    final b2 = <double>[0.1, 0.1, 0.1];
     
     // Output layer (3 -> 1 output)
-    final w3 = Vector.fromList([0.4, 0.3, 0.3]);
+    final w3 = <double>[0.4, 0.3, 0.3];
     const b3 = 0.1;
     
     // Forward pass with ReLU activation
-    var hidden1 = (w1 * input + b1).map((x) => x > 0 ? x : 0);
-    var hidden2 = (w2 * hidden1 + b2).map((x) => x > 0 ? x : 0);
-    var output = hidden2.dot(w3) + b3;
+    final hidden1 = _applyReLU(_vectorAdd(_matrixVectorProduct(w1, input), b1));
+    final hidden2 = _applyReLU(_vectorAdd(_matrixVectorProduct(w2, hidden1), b2));
+    var output = _dot(hidden2, w3) + b3;
     
     // Apply service type specific adjustment
     final serviceType = inputFeatures[2].toInt();
@@ -245,15 +244,14 @@ class ArrivalPredictionModels {
     return normalized;
   }
   
-
   // Naive Bayes Classifier for service allocation
   static double predictWithNaiveBayes(List<double> inputFeatures) {
     // Categorize allocation times into 4 classes based on service level agreement (SLA)
     final classRanges = [
-      {'min': 0, 'max': 30, 'label': 'Fast'},      // 0-30 min (Premium)
-      {'min': 30, 'max': 90, 'label': 'Standard'},  // 30-90 min (Standard)
-      {'min': 90, 'max': 180, 'label': 'Delayed'},  // 1.5-3 hours (Delayed)
-      {'min': 180, 'max': double.infinity, 'label': 'Extended'}, // 3+ hours (Extended)
+      {'min': 0.0, 'max': 30.0, 'label': 'Fast'},      // 0-30 min (Premium)
+      {'min': 30.0, 'max': 90.0, 'label': 'Standard'},  // 30-90 min (Standard)
+      {'min': 90.0, 'max': 180.0, 'label': 'Delayed'},  // 1.5-3 hours (Delayed)
+      {'min': 180.0, 'max': double.infinity, 'label': 'Extended'}, // 3+ hours (Extended)
     ];
     
     // Count occurrences of each class
@@ -275,7 +273,9 @@ class ArrivalPredictionModels {
       String? dataClass;
       
       for (final range in classRanges) {
-        if (arrivalTime >= range['min'] && arrivalTime < range['max']) {
+        final minVal = range['min'] as double;
+        final maxVal = range['max'] as double;
+        if (arrivalTime >= minVal && arrivalTime < maxVal) {
           dataClass = range['label'] as String;
           break;
         }
@@ -303,7 +303,9 @@ class ArrivalPredictionModels {
       String? dataClass;
       
       for (final range in classRanges) {
-        if (arrivalTime >= range['min'] && arrivalTime < range['max']) {
+        final minVal = range['min'] as double;
+        final maxVal = range['max'] as double;
+        if (arrivalTime >= minVal && arrivalTime < maxVal) {
           dataClass = range['label'] as String;
           break;
         }
@@ -382,9 +384,10 @@ class ArrivalPredictionModels {
     // Return the midpoint of the predicted class range as the estimated time
     for (final range in classRanges) {
       if (range['label'] == predictedClass) {
-        final min = range['min'] as double;
-        final max = range['max'] as double;
-        return (min + min(max, 120.0)) / 2; // Cap at 120 minutes
+        final minVal = range['min'] as double;
+        final maxVal = range['max'] as double;
+        final cappedMax = maxVal <= 120.0 ? maxVal : 120.0;
+        return (minVal + cappedMax) / 2; // Cap at 120 minutes
       }
     }
     
@@ -430,6 +433,32 @@ class ArrivalPredictionModels {
     predictions['Ensemble'] = ensemblePrediction;
     
     return predictions;
+  }
+
+  // ---- Simple linear algebra helpers (to avoid external ml_linalg dependency) ----
+
+  static double _dot(List<double> a, List<double> b) {
+    final length = min(a.length, b.length);
+    double sum = 0;
+    for (var i = 0; i < length; i++) {
+      sum += a[i] * b[i];
+    }
+    return sum;
+  }
+
+  static List<double> _vectorAdd(List<double> a, List<double> b) {
+    final length = min(a.length, b.length);
+    return List<double>.generate(length, (i) => a[i] + b[i]);
+  }
+
+  static List<double> _applyReLU(List<double> v) {
+    return v.map((x) => x > 0 ? x : 0.0).toList();
+  }
+
+  static List<double> _matrixVectorProduct(List<List<double>> m, List<double> v) {
+    return m
+        .map((row) => _dot(row, v))
+        .toList(growable: false);
   }
 }
 

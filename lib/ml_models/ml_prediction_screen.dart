@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:servez/ml_models/arrival_prediction_models.dart';
+import 'arrival_prediction_models.dart';
 
 class MLPredictionScreen extends StatefulWidget {
   const MLPredictionScreen({Key? key}) : super(key: key);
