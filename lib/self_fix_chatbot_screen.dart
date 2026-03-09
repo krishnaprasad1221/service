@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:serviceprovider/utils/search_tokens.dart';
 import 'package:serviceprovider/self_fix_screen.dart';
 import 'package:serviceprovider/repair_guide_screen.dart';
 import 'package:serviceprovider/view_services_screen.dart';
@@ -23,6 +25,110 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
   final TextEditingController _inputController = TextEditingController();
   bool _isProcessing = false;
   final ImagePicker _imagePicker = ImagePicker();
+  static final Set<String> _brandStopTokens = {
+    'laptop',
+    'notebook',
+    'computer',
+    'pc',
+    'desktop',
+    'monitor',
+    'screen',
+    'display',
+    'keyboard',
+    'mouse',
+    'touch',
+    'touchscreen',
+    'windows',
+    'intel',
+    'core',
+    'inside',
+    'processor',
+    'cpu',
+    'gpu',
+    'graphics',
+    'nvidia',
+    'geforce',
+    'amd',
+    'ryzen',
+    'ram',
+    'ssd',
+    'hdd',
+    'storage',
+    'drive',
+    'usb',
+    'hd',
+    'fhd',
+    'uhd',
+    '4k',
+    '1080',
+    '720',
+    'wifi',
+    'bluetooth',
+    'battery',
+    'charger',
+    'adapter',
+    'power',
+    'input',
+    'output',
+    'voltage',
+    'model',
+    'serial',
+    'number',
+    'product',
+    'made',
+    'china',
+    'service',
+    'repair',
+    'support',
+    'warranty',
+    'energy',
+    'star',
+    'led',
+    'lcd',
+    'smart',
+    'thin',
+    'light',
+    'pro',
+    'air',
+    'max',
+    'mini',
+    'book',
+    'series',
+    'device',
+    'appliance',
+    'tv',
+    'ac',
+    'fan',
+    'fridge',
+    'refrigerator',
+    'washing',
+    'machine',
+    'oven',
+    'microwave',
+    'cooling',
+    'heating',
+    'unit',
+    'home',
+    'office',
+    'system',
+    'brand',
+    'logo',
+    'madein',
+    'i3',
+    'i5',
+    'i7',
+    'i9',
+    'watt',
+    'watts',
+    'volt',
+    'volts',
+    'hz',
+    'amps',
+    'amp',
+    'kg',
+    'cm',
+    'mm',
+  };
 
   @override
   void initState() {
@@ -361,6 +467,7 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
   Future<void> _classifyApplianceAndSuggestProviders(XFile imageFile) async {
     try {
       final String applianceLabel = await _runApplianceClassification(imageFile);
+      final List<String> brandTokens = await _detectBrandTokens(imageFile);
 
       if (applianceLabel.isEmpty || applianceLabel == 'Unknown Appliance') {
         _addBotMessage(
@@ -377,6 +484,7 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
         await FirebaseFirestore.instance.collection('service_requests').add({
           'userId': userId,
           'applianceType': applianceLabel,
+          'brandTokens': brandTokens,
           'status': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -386,7 +494,7 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
 
       _addBotMessage('I detected that this looks like a "$applianceLabel". Let me fetch suitable service providers for you.');
 
-      await _suggestProvidersForAppliance(applianceLabel);
+      await _suggestProvidersForAppliance(applianceLabel, brandTokens: brandTokens);
     } catch (e) {
       _addBotMessage(
         'I had trouble analyzing the image just now. Please try again later or describe the appliance and issue in text.',
@@ -473,6 +581,229 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     }
   }
 
+  Future<List<String>> _detectBrandTokens(XFile imageFile) async {
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    try {
+      final inputImage = InputImage.fromFilePath(imageFile.path);
+      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      return _extractBrandTokens(recognizedText.text);
+    } catch (_) {
+      return const [];
+    } finally {
+      textRecognizer.close();
+    }
+  }
+
+  List<String> _extractBrandTokens(String text) {
+    final Set<String> tokens = <String>{};
+    final matches = RegExp(r'[A-Za-z0-9]+').allMatches(text);
+    for (final m in matches) {
+      final token = m.group(0);
+      if (token == null) continue;
+      final lower = token.toLowerCase();
+      if (lower.length < 2) continue;
+      if (RegExp(r'^\d+$').hasMatch(lower)) continue;
+      if (_brandStopTokens.contains(lower)) continue;
+      tokens.add(lower);
+    }
+    final list = tokens.toList()
+      ..sort((a, b) {
+        final len = b.length.compareTo(a.length);
+        return len != 0 ? len : a.compareTo(b);
+      });
+    if (list.length > 10) return list.sublist(0, 10);
+    return list;
+  }
+
+  bool _textContainsToken(String text, String token) {
+    if (text.isEmpty || token.isEmpty) return false;
+    if (token.length <= 3) {
+      final pattern = RegExp(r'(^|[^a-z0-9])' + RegExp.escape(token) + r'([^a-z0-9]|$)');
+      return pattern.hasMatch(text);
+    }
+    return text.contains(token);
+  }
+
+  bool _serviceMatchesBrandTokens(Map<String, dynamic> data, Set<String> tokens) {
+    if (tokens.isEmpty) return false;
+
+    final tokensField = data['searchTokens'];
+    if (tokensField is List) {
+      for (final t in tokensField.whereType<String>()) {
+        if (tokens.contains(t.toLowerCase())) return true;
+      }
+    }
+
+    final buffer = StringBuffer();
+    void addField(dynamic value) {
+      if (value == null) return;
+      if (value is String) {
+        buffer.write(' ');
+        buffer.write(value.toLowerCase());
+      } else if (value is List) {
+        for (final v in value.whereType<String>()) {
+          buffer.write(' ');
+          buffer.write(v.toLowerCase());
+        }
+      }
+    }
+
+    addField(data['serviceName']);
+    addField(data['description']);
+    addField(data['categoryName'] ?? data['category']);
+    addField(data['subCategoryName']);
+    addField(data['subCategoryNames']);
+    addField(data['providerName']);
+
+    final combined = buffer.toString();
+    for (final token in tokens) {
+      if (_textContainsToken(combined, token)) return true;
+    }
+    return false;
+  }
+
+  Future<List<QueryDocumentSnapshot>> _fetchServicesByBrandTokens(
+    List<String> brandTokens, {
+    String? mappedCategory,
+  }) async {
+    if (brandTokens.isEmpty) return const <QueryDocumentSnapshot>[];
+    final tokens = brandTokens
+        .map((t) => t.toLowerCase())
+        .where((t) => t.trim().isNotEmpty)
+        .toList();
+    final queryTokens = tokens.length > 10 ? tokens.sublist(0, 10) : tokens;
+
+    final Map<String, QueryDocumentSnapshot> unique = <String, QueryDocumentSnapshot>{};
+    final Set<String> tokenSet = queryTokens.toSet();
+    final collection = FirebaseFirestore.instance.collection('services');
+
+    try {
+      final snapshot = await collection
+          .where('searchTokens', arrayContainsAny: queryTokens)
+          .limit(30)
+          .get();
+      for (final doc in snapshot.docs) {
+        unique[doc.id] = doc;
+      }
+    } catch (_) {
+      // Ignore and rely on fallback scan.
+    }
+
+    void addMatches(QuerySnapshot snap) {
+      for (final doc in snap.docs) {
+        if (unique.containsKey(doc.id)) continue;
+        if (_serviceMatchesBrandTokens(doc.data() as Map<String, dynamic>, tokenSet)) {
+          unique[doc.id] = doc;
+        }
+      }
+    }
+
+    // Fallback for legacy services without searchTokens or without brand tokens.
+    if (mappedCategory != null) {
+      final snapA = await collection
+          .where('category', isEqualTo: mappedCategory)
+          .limit(80)
+          .get();
+      addMatches(snapA);
+
+      final snapB = await collection
+          .where('categoryName', isEqualTo: mappedCategory)
+          .limit(80)
+          .get();
+      addMatches(snapB);
+    }
+
+    if (unique.length < 6) {
+      final snapAll = await collection.limit(120).get();
+      addMatches(snapAll);
+    }
+
+    return unique.values.toList();
+  }
+
+  List<QueryDocumentSnapshot> _filterBrandServicesByAppliance(
+      List<QueryDocumentSnapshot> docs,
+      String applianceLabel,
+      String? mappedCategory,
+  ) {
+    if (docs.isEmpty) return docs;
+    final targetTokens = buildSearchTokens(
+      serviceName: applianceLabel,
+      categoryName: mappedCategory,
+      subCategoryNames: const [],
+      description: null,
+      maxTokens: 12,
+    ).toSet();
+
+    if (targetTokens.isEmpty) return docs;
+
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final tokensField = data['searchTokens'];
+      final Set<String> serviceTokens = <String>{};
+      if (tokensField is List) {
+        for (final t in tokensField.whereType<String>()) {
+          serviceTokens.add(t.toLowerCase());
+        }
+      }
+
+      if (serviceTokens.isNotEmpty) {
+        for (final t in targetTokens) {
+          if (serviceTokens.contains(t)) return true;
+        }
+        return false;
+      }
+
+      final name = (data['serviceName'] ?? '').toString().toLowerCase();
+      final category = (data['categoryName'] ?? data['category'] ?? '').toString().toLowerCase();
+      final subName = (data['subCategoryName'] ?? '').toString().toLowerCase();
+      final subNames = data['subCategoryNames'];
+      final buffer = StringBuffer()
+        ..write(name)
+        ..write(' ')
+        ..write(category)
+        ..write(' ')
+        ..write(subName);
+      if (subNames is List) {
+        for (final s in subNames.whereType<String>()) {
+          buffer.write(' ');
+          buffer.write(s.toLowerCase());
+        }
+      }
+      final combined = buffer.toString();
+      for (final t in targetTokens) {
+        if (combined.contains(t)) return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  String? _pickBestBrandToken(List<String> brandTokens, List<QueryDocumentSnapshot> docs) {
+    if (brandTokens.isEmpty) return null;
+    final tokenSet = brandTokens.map((t) => t.toLowerCase()).toSet();
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final tokensField = data['searchTokens'];
+      if (tokensField is List) {
+        for (final t in tokensField.whereType<String>()) {
+          final lower = t.toLowerCase();
+          if (tokenSet.contains(lower)) return lower;
+        }
+      }
+      final name = (data['serviceName'] ?? '').toString().toLowerCase();
+      for (final t in brandTokens) {
+        if (name.contains(t.toLowerCase())) return t.toLowerCase();
+      }
+    }
+    return brandTokens.first.toLowerCase();
+  }
+
+  String _formatBrandLabel(String brand) {
+    if (brand.isEmpty) return brand;
+    if (brand.length <= 3) return brand.toUpperCase();
+    return brand[0].toUpperCase() + brand.substring(1);
+  }
+
   Future<List<QueryDocumentSnapshot>> _fetchProvidersByAppliance(
       String applianceType) async {
     final snapshot = await FirebaseFirestore.instance
@@ -484,7 +815,10 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     return snapshot.docs;
   }
 
-  Future<void> _suggestProvidersForAppliance(String applianceLabel) async {
+  Future<void> _suggestProvidersForAppliance(
+      String applianceLabel, {
+      List<String> brandTokens = const [],
+  }) async {
     final labelLower = applianceLabel.toLowerCase();
 
     String? mappedCategory;
@@ -501,29 +835,47 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     }
 
     try {
+      List<QueryDocumentSnapshot> brandSelected = const [];
+      String? brandLabel;
+      if (brandTokens.isNotEmpty) {
+        final brandServicesRaw = await _fetchServicesByBrandTokens(
+          brandTokens,
+          mappedCategory: mappedCategory,
+        );
+        if (brandServicesRaw.isNotEmpty) {
+          final filtered = _filterBrandServicesByAppliance(
+              brandServicesRaw, applianceLabel, mappedCategory);
+          brandSelected = filtered.isNotEmpty ? filtered : brandServicesRaw;
+          final brand = _pickBestBrandToken(brandTokens, brandSelected);
+          brandLabel = brand == null ? null : _formatBrandLabel(brand);
+        }
+      }
+
       // First, try to fetch active providers that explicitly support this
       // appliance type from the `providers` collection. Prefer a
       // normalized/mapped category string when available so that it
       // matches how services/providers are stored.
-      final String lookupType = mappedCategory ?? applianceLabel;
-      final providerDocs = await _fetchProvidersByAppliance(lookupType);
+      if (brandSelected.isEmpty) {
+        final String lookupType = mappedCategory ?? applianceLabel;
+        final providerDocs = await _fetchProvidersByAppliance(lookupType);
 
-      if (providerDocs.isNotEmpty) {
-        final buffer = StringBuffer();
-        buffer.writeln('Here are some providers who can help with your "$applianceLabel":');
+        if (providerDocs.isNotEmpty) {
+          final buffer = StringBuffer();
+          buffer.writeln('Here are some providers who can help with your "$applianceLabel":');
 
-        for (final doc in providerDocs.take(5)) {
-          final data = doc.data() as Map<String, dynamic>;
-          final name = (data['name'] as String?) ?? 'Provider';
-          buffer.writeln('- $name');
+          for (final doc in providerDocs.take(5)) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] as String?) ?? 'Provider';
+            buffer.writeln('- $name');
+          }
+
+          buffer.writeln('You can explore their services from the services section too.');
+          _addBotMessage(buffer.toString());
+          if (mounted) {
+            _showProvidersSheet(providerDocs.take(10).toList(), applianceLabel);
+          }
+          return;
         }
-
-        buffer.writeln('You can explore their services from the services section too.');
-        _addBotMessage(buffer.toString());
-        if (mounted) {
-          _showProvidersSheet(providerDocs.take(10).toList(), applianceLabel);
-        }
-        return;
       }
 
       // Fallback to existing services-based discovery logic if no providers
@@ -563,17 +915,36 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
         }).toList();
       }
 
-      if (candidates.isEmpty) {
+      if (candidates.isEmpty && brandSelected.isEmpty) {
         _addBotMessage(
           'I identified the appliance as "$applianceLabel" but could not find matching services right now. You can still browse all services from the dashboard.',
         );
         return;
       }
 
-      final buffer = StringBuffer();
-      buffer.writeln('Here are some services that can help with your "$applianceLabel":');
+      final List<QueryDocumentSnapshot> combined = <QueryDocumentSnapshot>[];
+      final Set<String> seen = <String>{};
+      for (final doc in brandSelected) {
+        if (seen.add(doc.id)) combined.add(doc);
+      }
+      for (final doc in candidates) {
+        if (seen.add(doc.id)) combined.add(doc);
+      }
 
-      for (final doc in candidates.take(10)) {
+      final display = combined.take(10).toList();
+
+      final buffer = StringBuffer();
+      if (brandSelected.isNotEmpty) {
+        if (brandLabel != null && brandLabel.isNotEmpty) {
+          buffer.writeln('I noticed brand text like "$brandLabel". Showing brand-matched services and other "$applianceLabel" options:');
+        } else {
+          buffer.writeln('Here are services matching the brand text I found, plus other "$applianceLabel" options:');
+        }
+      } else {
+        buffer.writeln('Here are some services that can help with your "$applianceLabel":');
+      }
+
+      for (final doc in display) {
         final data = doc.data() as Map<String, dynamic>;
         final name = (data['serviceName'] as String?) ?? 'Service';
         final location = (data['addressDisplay'] as String?) ?? (data['locationAddress'] as String?) ?? '';
@@ -586,7 +957,7 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
 
       _addBotMessage(buffer.toString());
       if (mounted) {
-        _showServiceBasedProvidersSheet(candidates, applianceLabel);
+        _showServiceBasedProvidersSheet(display, applianceLabel);
       }
     } catch (e) {
       _addBotMessage(
@@ -882,3 +1253,5 @@ class _ChatMessage {
 
   _ChatMessage({required this.text, required this.fromBot, this.imagePath});
 }
+
+

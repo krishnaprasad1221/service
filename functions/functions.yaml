@@ -1,0 +1,11 @@
+specVersion: "v1alpha1"
+endpoints:
+  onChatMessageCreate:
+    platform: "gcfv1"
+    entryPoint: "onChatMessageCreate"
+    region: ["us-central1"]
+    eventTrigger:
+      eventType: "providers/cloud.firestore/eventTypes/document.create"
+      retry: false
+      eventFilters:
+        resource: "projects/serviceapp-37d3a/databases/(default)/documents/chats/{chatId}/messages/{messageId}"

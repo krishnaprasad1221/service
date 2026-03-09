@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:serviceprovider/utils/search_tokens.dart';
 
 class EditServiceScreen extends StatefulWidget {
   final String serviceId;
@@ -160,6 +161,18 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
         }
       }
 
+      final subCategoryNames = _selectedSubCategoryIds
+          .map((id) => _selectedSubCategoryNames[id] ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      final searchTokens = buildSearchTokens(
+        serviceName: _serviceNameController.text.trim(),
+        categoryName: _selectedCategory,
+        subCategoryNames: subCategoryNames,
+        description: _descriptionController.text.trim(),
+      );
+
       await FirebaseFirestore.instance.collection('services').doc(widget.serviceId).update({
         'serviceName': _serviceNameController.text.trim(),
         'category': _selectedCategory,
@@ -181,7 +194,8 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
         'subCategoryId': _selectedSubCategoryIds.isNotEmpty ? _selectedSubCategoryIds.first : null,
         'subCategoryName': _selectedSubCategoryIds.isNotEmpty ? (_selectedSubCategoryNames[_selectedSubCategoryIds.first] ?? '') : null,
         'subCategoryIds': _selectedSubCategoryIds.toList(),
-        'subCategoryNames': _selectedSubCategoryIds.map((id) => _selectedSubCategoryNames[id] ?? '').where((s) => s.isNotEmpty).toList(),
+        'subCategoryNames': subCategoryNames,
+        'searchTokens': searchTokens,
         // ▼▼▼▼▼ PRICE UPDATE LOGIC REMOVED ▼▼▼▼▼
         // 'price': double.tryParse(_priceController.text) ?? 0.0,
         // ▲▲▲▲▲ PRICE UPDATE LOGIC REMOVED ▲▲▲▲▲

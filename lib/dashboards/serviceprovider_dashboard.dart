@@ -19,6 +19,7 @@ import '../provider_availability_screen.dart';
 import '../provider_notifications_screen.dart';
 import '../booking_detail_screen.dart';
 import '../on_time_bookings_screen.dart';
+import '../chats_screen.dart';
 
 class ServiceProviderDashboard extends StatefulWidget {
   const ServiceProviderDashboard({super.key});
@@ -1112,6 +1113,15 @@ class _DashboardHomeTab extends StatelessWidget {
   }
 
   Widget _buildQuickActionsGrid(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    const double horizontalPadding = 12.0 * 2;
+    const double spacing = 10.0;
+    const int crossAxisCount = 2;
+    final double itemWidth =
+        (size.width - horizontalPadding - (spacing * (crossAxisCount - 1))) /
+            crossAxisCount;
+    final double cardHeight = (itemWidth * 0.98).clamp(148.0, 178.0).toDouble();
+
     final actions = [
       {
         'title': 'Add New Service',
@@ -1151,31 +1161,82 @@ class _DashboardHomeTab extends StatelessWidget {
       },
     ];
 
+    final List<Widget> cards = actions.map<Widget>((action) {
+      return _ActionCard(
+        title: action['title'] as String,
+        icon: action['icon'] as IconData,
+        color: action['color'] as Color,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => action['route'] as Widget),
+        ),
+      );
+    }).toList();
+
+    // Keep chat actions closer to other communication-related items.
+    cards.insert(3, _buildChatActionCard(context));
+
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
       sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.3,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: spacing,
+          mainAxisExtent: cardHeight,
         ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final action = actions[index];
-            return _ActionCard(
-              title: action['title'] as String,
-              icon: action['icon'] as IconData,
-              color: action['color'] as Color,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => action['route'] as Widget),
-              ),
-            );
-          },
-          childCount: actions.length,
-        ),
+        delegate: SliverChildListDelegate(cards),
       ),
+    );
+  }
+
+  Widget _buildChatActionCard(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return _ActionCard(
+        title: 'Chats',
+        icon: Icons.chat_bubble_outline,
+        color: Colors.teal,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.provider)),
+        ),
+      );
+    }
+
+    final stream = FirebaseFirestore.instance
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        int unread = 0;
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final Timestamp? lastTs = data['lastMessageAt'] as Timestamp?;
+            final String lastSenderId = (data['lastSenderId'] as String?) ?? '';
+            if (lastTs == null || lastSenderId == uid) continue;
+            final Timestamp? lastRead = data['lastReadAtProvider'] as Timestamp?;
+            if (lastRead == null || lastTs.toDate().isAfter(lastRead.toDate())) {
+              unread++;
+            }
+          }
+        }
+
+        return _ActionCard(
+          title: 'Chats',
+          icon: Icons.chat_bubble_outline,
+          color: Colors.teal,
+          badgeCount: unread,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.provider)),
+          ),
+        );
+      },
     );
   }
 }
@@ -2201,47 +2262,98 @@ class _ActionCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final int? badgeCount;
 
-  const _ActionCard({required this.title, required this.icon, required this.color, required this.onTap});
+  const _ActionCard({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.badgeCount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+    final double w = constraints.maxWidth;
+    final double pad = (w * 0.08).clamp(12.0, 16.0);
+    final double avatarSize = (w * 0.36).clamp(52.0, 66.0);
+    final double iconSize = (avatarSize * 0.56).clamp(24.0, 34.0);
+        final double gap = (w * 0.08).clamp(10.0, 16.0);
+        final double fontSize = (w * 0.10).clamp(12.0, 15.0);
+
+        return Stack(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: onTap,
+                child: Ink(
+                  padding: EdgeInsets.symmetric(horizontal: pad, vertical: pad),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: avatarSize,
+                        height: avatarSize,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, size: iconSize, color: color),
+                      ),
+                      SizedBox(height: gap),
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: fontSize,
+                          height: 1.15,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Icon(icon, size: 22, color: color),
             ),
-            const SizedBox(height: 6),
-            Text(
-              title, 
-              textAlign: TextAlign.center, 
-              style: const TextStyle(
-                fontWeight: FontWeight.w500, 
-                fontSize: 12, 
-                height: 1.1,
+            if (badgeCount != null && badgeCount! > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badgeCount! > 99 ? '99+' : badgeCount.toString(),
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

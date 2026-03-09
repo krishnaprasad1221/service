@@ -1,0 +1,47 @@
+{
+	"motd": {
+		"cloudBuildErrorAfter": 1594252800000,
+		"cloudBuildWarnAfter": 1590019200000,
+		"defaultNode10After": 1594252800000,
+		"minVersion": "3.0.5",
+		"node8DeploysDisabledAfter": 1613390400000,
+		"node8RuntimeDisabledAfter": 1615809600000,
+		"node8WarnAfter": 1600128000000,
+		"fetched": 1770372005666
+	},
+	"gemini": true,
+	"usage": true,
+	"analytics-uuid": "6bd04da2-23f7-4838-a00d-9e68085302cd",
+	"user": {
+		"iss": "accounts.google.com",
+		"azp": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"aud": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"sub": "118092893651337531308",
+		"email": "krizhnav11@gmail.com",
+		"email_verified": true,
+		"at_hash": "t59DS4CSepLp_XOt-BrNrQ",
+		"iat": 1770372032,
+		"exp": 1770375632
+	},
+	"tokens": {
+		"expires_at": 1770375630643,
+		"access_token": "ya29.a0AUMWg_Lz_mw_KA7BtoAX6rKZmefZqiTxcpdIgZZqZ-faL1bieRjJYrgvTyFgTdFeyUUssZaGjiS5HPYZbdTAG-YqdbTlIS-v6I2ZZrvHiP5MfVKqBhPR-w_WHefkT1fRL1oFCWHuATs8h4D5mA8TlWDswNvOIHefx31yXPj3_v83J7ltEkt6hCgvEtSSMVwLD9HS4w3Pfzv_aCgYKAbMSARISFQHGX2MiqHojEfv4l8lYQ1VgIe9PRg0211",
+		"expires_in": 3599,
+		"refresh_token": "1//0glEKvrI8xOgBCgYIARAAGBASNwF-L9IrTvdAU7wsf1zxYfvfsESPjCVhv4ShntXgey980zIAQ-PyZjmq6-omQRLpA4UvSejHl6c",
+		"scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/cloudplatformprojects.readonly https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/userinfo.email openid",
+		"token_type": "Bearer",
+		"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImMyN2JhNDBiMDk1MjlhZDRmMTY4MjJjZTgzMTY3YzFiYzM5MTAxMjIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIiwiYXpwIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwiYXVkIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTE4MDkyODkzNjUxMzM3NTMxMzA4IiwiZW1haWwiOiJrcml6aG5hdjExQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoidDU5RFM0Q1NlcExwX1hPdC1Cck5yUSIsImlhdCI6MTc3MDM3MjAzMiwiZXhwIjoxNzcwMzc1NjMyfQ.QxyBvjS_lUv0wePSmne49h2EEndsRE94voxdhcQzueNYkOIOQVnbfd23rKYhsYxheMO2o2r9Nn31qUFbGNLQRwBWIjUO4rk-sjjastm9QPF7fMvIEcrd823nftbpNlPwxqpk1DSarOIuEjQDNhc3dKs08B5bQDNeFn33soxtE73TRhhBXCo1Jy1Iwzm3U55UaInfX9Y4vmy7a4b-Cucw_7cz5I6EbX9CyqNQR4X6vKVF8e93piBkT29bcoPCDejEavK5esWsB3GbQNGfgnZNhGD4hxDxpnkUyuN2L7cJbVZjufLIL0qxSgAzH7SCr61Eo_47yFPxh_uJ0c81yA8kYw"
+	},
+	"apiEnablementCache": {
+		"serviceapp-37d3a": {
+			"cloudresourcemanager.googleapis.com": true,
+			"runtimeconfig.googleapis.com": true,
+			"artifactregistry.googleapis.com": true,
+			"cloudfunctions.googleapis.com": true,
+			"cloudbuild.googleapis.com": true
+		}
+	},
+	"activeProjects": {
+		"C:\\Users\\krish\\OneDrive\\Desktop\\servez": "serviceapp-37d3a"
+	}
+}

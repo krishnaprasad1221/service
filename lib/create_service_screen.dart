@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/services.dart';
+import 'package:serviceprovider/utils/search_tokens.dart';
 import 'service_preview_screen.dart';
 
 class CreateServiceScreen extends StatefulWidget {
@@ -169,6 +170,13 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
       final String? legacySubId = subIds.isNotEmpty ? subIds.first : null;
       final String? legacySubName = subNames.isNotEmpty ? subNames.first : null;
 
+      final searchTokens = buildSearchTokens(
+        serviceName: _serviceNameController.text.trim(),
+        categoryName: _selectedCategoryName,
+        subCategoryNames: subNames,
+        description: _descriptionController.text.trim(),
+      );
+
       await FirebaseFirestore.instance.collection('services').add({
         'providerId': user.uid,
         'providerName': user.displayName ?? 'N/A',
@@ -192,6 +200,7 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
         'serviceImageUrl': imageUrl,
         'isAvailable': _isAvailable,
         'createdAt': FieldValue.serverTimestamp(),
+        'searchTokens': searchTokens,
         // Legacy/Existing fields kept
         'locationAddress': _locationController.text.trim(),
         'locationGeoPoint': _currentPosition != null ? GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude) : null,

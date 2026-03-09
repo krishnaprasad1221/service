@@ -15,6 +15,7 @@ import 'package:serviceprovider/customer_notifications_screen.dart';
 import 'package:serviceprovider/customer_view_service_screen.dart';
 import 'package:serviceprovider/self_fix_screen.dart';
 import 'package:serviceprovider/self_fix_chatbot_screen.dart';
+import 'package:serviceprovider/chats_screen.dart';
 // Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
@@ -86,9 +87,12 @@ class _FeaturedForYouCarouselState extends State<_FeaturedForYouCarousel> {
 
         if (items.isEmpty) {
           items = [
-            {'name': 'Book top-rated services', 'imageUrl': null},
-            {'name': 'Fast response nearby', 'imageUrl': null},
-            {'name': 'Great prices this week', 'imageUrl': null},
+            {'name': 'Home Deep Cleaning', 'imageUrl': null},
+            {'name': 'AC Service & Repair', 'imageUrl': null},
+            {'name': 'Bathroom Plumbing', 'imageUrl': null},
+            {'name': 'Electric Installation', 'imageUrl': null},
+            {'name': 'Pest Control Visit', 'imageUrl': null},
+            {'name': 'General Handyman', 'imageUrl': null},
           ];
         }
 
@@ -428,7 +432,7 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF6F7FB),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : IndexedStack(
@@ -436,11 +440,14 @@ class _UserDashboardState extends State<UserDashboard> {
               children: _pages,
             ),
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        elevation: 12,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey[600],
         type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_filled),
@@ -483,17 +490,23 @@ class _UserDashboardState extends State<UserDashboard> {
 
   Widget _buildHomeContent() {
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
         _buildHeader(),
         _buildSectionTitle("Featured"),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 180,
-            child: _FeaturedForYouCarousel(),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          sliver: SliverToBoxAdapter(
+            child: SizedBox(
+              height: 190,
+              child: _FeaturedForYouCarousel(),
+            ),
           ),
         ),
         _buildSectionTitle("Categories"),
         _buildCategoryList(),
+        _buildSectionTitle("Popular Services"),
+        _buildPopularServicesList(),
         _buildSectionTitle("Quick Actions"),
         _buildDashboardGrid(),
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
@@ -615,12 +628,13 @@ class _UserDashboardState extends State<UserDashboard> {
   Widget _buildSectionTitle(String title) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
         child: Text(
           title,
           style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
               color: Colors.grey[800]),
         ),
       ),
@@ -634,15 +648,23 @@ class _UserDashboardState extends State<UserDashboard> {
       {'icon': Icons.brush, 'label': 'Painting', 'color': Colors.pink},
       {'icon': Icons.electrical_services, 'label': 'Electrician', 'color': Colors.amber},
       {'icon': Icons.handyman, 'label': 'Repairs', 'color': Colors.brown},
+      {'icon': Icons.ac_unit_rounded, 'label': 'AC Repair', 'color': Colors.cyan},
+      {'icon': Icons.pest_control_rounded, 'label': 'Pest Control', 'color': Colors.green},
+      {'icon': Icons.local_laundry_service_rounded, 'label': 'Laundry', 'color': Colors.indigo},
+      {'icon': Icons.directions_car_filled_rounded, 'label': 'Car Care', 'color': Colors.blueGrey},
+      {'icon': Icons.security_rounded, 'label': 'CCTV', 'color': Colors.deepPurple},
+      {'icon': Icons.grass_rounded, 'label': 'Gardening', 'color': Colors.teal},
+      {'icon': Icons.local_shipping_rounded, 'label': 'Shifting', 'color': Colors.deepOrange},
     ];
 
     return SliverToBoxAdapter(
       child: SizedBox(
-        height: 100,
-        child: ListView.builder(
+        height: 108,
+        child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: categories.length,
           padding: const EdgeInsets.symmetric(horizontal: 16),
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (context, index) {
             final category = categories[index];
             return _buildCategoryChip(
@@ -657,37 +679,396 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   Widget _buildCategoryChip(String label, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12.0),
+    return SizedBox(
+      width: 78,
       child: Column(
         children: [
           CircleAvatar(
-            radius: 32,
+            radius: 30,
             backgroundColor: color.withOpacity(0.15),
             child: Icon(icon, color: color, size: 30),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(label,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Colors.grey[700], fontWeight: FontWeight.w500)),
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              )),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPopularServicesList() {
+    final services = [
+      {
+        'title': 'AC Mechanic',
+        'subtitle': 'Cooling, gas refill',
+        'badge': 'Popular',
+        'icon': Icons.ac_unit_rounded,
+        'color': Colors.cyan,
+      },
+      {
+        'title': 'House Cleaning',
+        'subtitle': 'Full home deep clean',
+        'badge': 'Top rated',
+        'icon': Icons.cleaning_services_rounded,
+        'color': Colors.lightBlue,
+      },
+      {
+        'title': 'Car Wash',
+        'subtitle': 'Exterior and interior',
+        'badge': 'Shine',
+        'icon': Icons.local_car_wash_rounded,
+        'color': Colors.blueAccent,
+      },
+      {
+        'title': 'Fridge Repair',
+        'subtitle': 'No cooling, noise',
+        'badge': 'Fast',
+        'icon': Icons.kitchen_rounded,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'TV Repair',
+        'subtitle': 'Screen and sound',
+        'badge': 'Trusted',
+        'icon': Icons.tv_rounded,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Car Wash Spa',
+        'subtitle': 'Exterior and interior',
+        'badge': 'Premium',
+        'icon': Icons.local_car_wash_rounded,
+        'color': Colors.lightBlue,
+      },
+      {
+        'title': 'Sofa Cleaning',
+        'subtitle': 'Fabric and stain removal',
+        'badge': 'Home visit',
+        'icon': Icons.weekend_rounded,
+        'color': Colors.brown,
+      },
+      {
+        'title': 'Washing Machine',
+        'subtitle': 'Drain, spin issues',
+        'badge': 'Same-day',
+        'icon': Icons.local_laundry_service_rounded,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'Bathroom Cleaning',
+        'subtitle': 'Tiles, fittings, floor',
+        'badge': 'Hygiene',
+        'icon': Icons.bathroom_rounded,
+        'color': Colors.lightBlueAccent,
+      },
+      {
+        'title': 'Microwave Service',
+        'subtitle': 'Heating problems',
+        'badge': 'Quick fix',
+        'icon': Icons.microwave_rounded,
+        'color': Colors.deepOrange,
+      },
+      {
+        'title': 'Kitchen Cleaning',
+        'subtitle': 'Grease and chimney',
+        'badge': 'Fresh',
+        'icon': Icons.kitchen_rounded,
+        'color': Colors.orangeAccent,
+      },
+      {
+        'title': 'Geyser Repair',
+        'subtitle': 'No hot water',
+        'badge': 'Winter',
+        'icon': Icons.hot_tub_rounded,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'RO Water Service',
+        'subtitle': 'Filter and leakage',
+        'badge': 'Home visit',
+        'icon': Icons.water_drop_rounded,
+        'color': Colors.lightBlueAccent,
+      },
+      {
+        'title': 'Pest Control',
+        'subtitle': 'Ants, roaches, rats',
+        'badge': 'Safe',
+        'icon': Icons.pest_control_rounded,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Laptop Repair',
+        'subtitle': 'Battery and speed',
+        'badge': 'Tech',
+        'icon': Icons.laptop_mac_rounded,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Phone Repair',
+        'subtitle': 'Screen and battery',
+        'badge': 'Express',
+        'icon': Icons.phone_android_rounded,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Plumbing',
+        'subtitle': 'Leak and fittings',
+        'badge': 'Urgent',
+        'icon': Icons.plumbing_rounded,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'Inverter Service',
+        'subtitle': 'Backup and wiring',
+        'badge': 'Power',
+        'icon': Icons.battery_charging_full_rounded,
+        'color': Colors.blueGrey,
+      },
+      {
+        'title': 'Electrician',
+        'subtitle': 'Wiring and switch',
+        'badge': 'Verified',
+        'icon': Icons.electrical_services_rounded,
+        'color': Colors.amber,
+      },
+      {
+        'title': 'Painting',
+        'subtitle': 'Walls and touch-up',
+        'badge': 'New look',
+        'icon': Icons.brush_rounded,
+        'color': Colors.pinkAccent,
+      },
+      {
+        'title': 'Chimney Cleaning',
+        'subtitle': 'Kitchen maintenance',
+        'badge': 'Hygiene',
+        'icon': Icons.kitchen_rounded,
+        'color': Colors.redAccent,
+      },
+      {
+        'title': 'Car Detailing',
+        'subtitle': 'Polish and wax',
+        'badge': 'Premium',
+        'icon': Icons.car_repair_rounded,
+        'color': Colors.blueGrey,
+      },
+      {
+        'title': 'Gardening',
+        'subtitle': 'Lawn and trimming',
+        'badge': 'Outdoor',
+        'icon': Icons.grass_rounded,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Water Tank Cleaning',
+        'subtitle': 'Safe and hygienic',
+        'badge': 'Seasonal',
+        'icon': Icons.water,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Window Cleaning',
+        'subtitle': 'Glass and frames',
+        'badge': 'Clear',
+        'icon': Icons.window,
+        'color': Colors.lightBlue,
+      },
+      {
+        'title': 'Floor Polishing',
+        'subtitle': 'Marble and tiles',
+        'badge': 'Shine',
+        'icon': Icons.layers_rounded,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Carpentry',
+        'subtitle': 'Furniture fixes',
+        'badge': 'Skilled',
+        'icon': Icons.carpenter_rounded,
+        'color': Colors.brown,
+      },
+      {
+        'title': 'Door Lock Repair',
+        'subtitle': 'Locks and keys',
+        'badge': 'Secure',
+        'icon': Icons.lock_rounded,
+        'color': Colors.blueGrey,
+      },
+      {
+        'title': 'Appliance Installation',
+        'subtitle': 'Setup and fitting',
+        'badge': 'New',
+        'icon': Icons.build_circle_rounded,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Generator Service',
+        'subtitle': 'Backup maintenance',
+        'badge': 'Power',
+        'icon': Icons.electrical_services_rounded,
+        'color': Colors.amber,
+      },
+      {
+        'title': 'Bike Wash',
+        'subtitle': 'Clean and polish',
+        'badge': 'Quick',
+        'icon': Icons.pedal_bike_rounded,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Home Sanitization',
+        'subtitle': 'Disinfection service',
+        'badge': 'Safe',
+        'icon': Icons.clean_hands_rounded,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Curtain Cleaning',
+        'subtitle': 'Dust and stain',
+        'badge': 'Care',
+        'icon': Icons.blinds_rounded,
+        'color': Colors.purple,
+      },
+    ];
+
+    return SliverToBoxAdapter(
+      child: SizedBox(
+        height: 176,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: services.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, index) {
+            final service = services[index];
+            return _buildServiceTypeCard(
+              title: service['title'] as String,
+              subtitle: service['subtitle'] as String,
+              badge: service['badge'] as String,
+              icon: service['icon'] as IconData,
+              color: service['color'] as Color,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceTypeCard({
+    required String title,
+    required String subtitle,
+    required String badge,
+    required IconData icon,
+    required Color color,
+  }) {
+    final Color soft = color.withOpacity(0.14);
+    return SizedBox(
+      width: 160,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ViewServicesScreen()),
+          ),
+          child: Ink(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [soft, Colors.white],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    badge,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 30),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[800],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildDashboardGrid() {
     return SliverPadding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 1.0,
+          // Slightly squarer cards to match the reference design
+          childAspectRatio: 0.95,
         ),
         delegate: SliverChildListDelegate([
           _buildDashboardCard(
-            title: "View All\nServices",
+            title: "View All Services",
             icon: Icons.apps_rounded,
             color: Colors.blue,
             onTap: () => Navigator.push(context,
@@ -701,7 +1082,7 @@ class _UserDashboardState extends State<UserDashboard> {
                 MaterialPageRoute(builder: (_) => const PaymentHistoryScreen())),
           ),
           _buildDashboardCard(
-            title: "Service\nTimeline",
+            title: "Service Timeline",
             icon: Icons.timeline_rounded,
             color: Colors.deepPurple,
             onTap: () => Navigator.push(
@@ -709,8 +1090,59 @@ class _UserDashboardState extends State<UserDashboard> {
               MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
             ),
           ),
+          _buildChatDashboardCard(),
         ]),
       ),
+    );
+  }
+
+  Widget _buildChatDashboardCard() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return _buildDashboardCard(
+        title: "Chats",
+        icon: Icons.chat_bubble_outline,
+        color: Colors.teal,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
+        ),
+      );
+    }
+
+    final stream = FirebaseFirestore.instance
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        int unread = 0;
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final Timestamp? lastTs = data['lastMessageAt'] as Timestamp?;
+            final String lastSenderId = (data['lastSenderId'] as String?) ?? '';
+            if (lastTs == null || lastSenderId == uid) continue;
+            final Timestamp? lastRead = data['lastReadAtCustomer'] as Timestamp?;
+            if (lastRead == null || lastTs.toDate().isAfter(lastRead.toDate())) {
+              unread++;
+            }
+          }
+        }
+
+        return _buildDashboardCard(
+          title: "Chats",
+          icon: Icons.chat_bubble_outline,
+          color: Colors.teal,
+          badgeCount: unread,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
+          ),
+        );
+      },
     );
   }
 
@@ -719,43 +1151,94 @@ class _UserDashboardState extends State<UserDashboard> {
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
+    int? badgeCount,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double w = constraints.maxWidth;
+        final double pad = (w * 0.08).clamp(12.0, 18.0);
+        final double avatarSize = (w * 0.34).clamp(54.0, 66.0);
+        final double iconSize = (avatarSize * 0.5).clamp(26.0, 32.0);
+        final double gap = (w * 0.08).clamp(12.0, 16.0);
+        final double fontSize = (w * 0.095).clamp(13.0, 16.0);
+        final double titleHeight = (fontSize * 2.6).clamp(32.0, 40.0);
+
+        return Stack(
           children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, size: 30, color: color),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-                height: 1.3,
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: onTap,
+                child: Ink(
+                  padding: EdgeInsets.symmetric(horizontal: pad, vertical: pad),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                    Container(
+                      width: avatarSize,
+                      height: avatarSize,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.16),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: iconSize, color: color),
+                    ),
+                    SizedBox(height: gap),
+                    SizedBox(
+                      height: titleHeight,
+                      child: Center(
+                        child: Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    ],
+                  ),
+                ),
               ),
             ),
+            if (badgeCount != null && badgeCount > 0)
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : badgeCount.toString(),
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -914,4 +1397,3 @@ class _SelfFixAssistantButtonState extends State<_SelfFixAssistantButton>
     );
   }
 }
-

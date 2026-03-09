@@ -2,10 +2,630 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'customer_view_service_screen.dart'; // <-- 1. IMPORT ADDED
 
-class ViewServicesScreen extends StatelessWidget {
+class _CatalogService {
+  final String name;
+  final String category;
+  final String? serviceType;
+  final String? location;
+  final double rating;
+  final int ratingCount;
+
+  const _CatalogService({
+    required this.name,
+    required this.category,
+    this.serviceType,
+    this.location,
+    this.rating = 4.5,
+    this.ratingCount = 0,
+  });
+}
+
+class _SeedService {
+  final String name;
+  final String category;
+  final String description;
+  final String imageUrl;
+  final String? serviceType;
+
+  const _SeedService({
+    required this.name,
+    required this.category,
+    required this.description,
+    required this.imageUrl,
+    this.serviceType,
+  });
+}
+
+const List<_SeedService> _demoSeedServices = <_SeedService>[
+  _SeedService(
+    name: 'AC Mechanic',
+    category: 'Appliance',
+    description: 'AC servicing, gas refill, and cooling issues.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Fridge Repair',
+    category: 'Appliance',
+    description: 'Cooling issues, noise, and compressor checks.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'TV Repair',
+    category: 'Electronics',
+    description: 'Screen, sound, and connectivity problems.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1521747116042-5a810fda9664?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Car Wash Spa',
+    category: 'Car Care',
+    description: 'Exterior wash, interior vacuum, and polish.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'House Cleaning',
+    category: 'Cleaning',
+    description: 'Full home deep cleaning service.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Bathroom Cleaning',
+    category: 'Cleaning',
+    description: 'Tiles, fittings, and floor cleaning.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Kitchen Cleaning',
+    category: 'Cleaning',
+    description: 'Degreasing, chimney, and surfaces.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1501045661006-fcebe0257c3f?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Sofa Cleaning',
+    category: 'Cleaning',
+    description: 'Stain removal and fabric care.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'RO Water Service',
+    category: 'Appliance',
+    description: 'Filter replacement and leakage fix.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Geyser Repair',
+    category: 'Appliance',
+    description: 'No hot water and electrical checks.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Microwave Service',
+    category: 'Appliance',
+    description: 'Heating issues and parts replacement.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1511688878353-3a2f5be94cd7?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Laptop Repair',
+    category: 'Electronics',
+    description: 'Battery, speed, and hardware fixes.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Phone Repair',
+    category: 'Electronics',
+    description: 'Screen and battery replacement.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Painting Service',
+    category: 'Painting',
+    description: 'Interior wall painting and touch-ups.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Plumbing Repair',
+    category: 'Plumbing',
+    description: 'Leak fixes and fittings replacement.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1564087128619-1f0e331dd1f2?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Electrical Repair',
+    category: 'Electrical',
+    description: 'Wiring, switch, and socket fixes.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Pest Control',
+    category: 'Pest Control',
+    description: 'Safe treatment for common pests.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Car Wash',
+    category: 'Car Care',
+    description: 'Basic exterior wash and vacuum.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Window Cleaning',
+    category: 'Cleaning',
+    description: 'Glass and frame cleaning.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+  _SeedService(
+    name: 'Gardening Service',
+    category: 'Gardening',
+    description: 'Lawn care and trimming.',
+    imageUrl:
+        'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1200&q=80',
+    serviceType: 'at_customer',
+  ),
+];
+
+const List<_CatalogService> _fallbackCatalogServices = <_CatalogService>[
+  _CatalogService(
+    name: 'Home Deep Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Residential Area',
+    rating: 4.7,
+    ratingCount: 82,
+  ),
+  _CatalogService(
+    name: 'Bathroom Plumbing',
+    category: 'Plumbing',
+    serviceType: 'at_customer',
+    location: 'Nearby City',
+    rating: 4.6,
+    ratingCount: 58,
+  ),
+  _CatalogService(
+    name: 'AC Service & Repair',
+    category: 'Appliance',
+    serviceType: 'at_customer',
+    location: 'Urban Area',
+    rating: 4.8,
+    ratingCount: 120,
+  ),
+  _CatalogService(
+    name: 'Fan & Light Installation',
+    category: 'Electrical',
+    serviceType: 'at_customer',
+    location: 'Local Service Zone',
+    rating: 4.5,
+    ratingCount: 73,
+  ),
+  _CatalogService(
+    name: 'Wall Painting',
+    category: 'Painting',
+    serviceType: 'at_customer',
+    location: 'Service Radius 15 km',
+    rating: 4.4,
+    ratingCount: 41,
+  ),
+  _CatalogService(
+    name: 'Carpet Shampoo Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Home Visit',
+    rating: 4.6,
+    ratingCount: 36,
+  ),
+  _CatalogService(
+    name: 'Pest Control Basic',
+    category: 'Pest Control',
+    serviceType: 'at_customer',
+    location: 'Citywide',
+    rating: 4.3,
+    ratingCount: 67,
+  ),
+  _CatalogService(
+    name: 'Washing Machine Repair',
+    category: 'Appliance',
+    serviceType: 'at_customer',
+    location: 'Local Technician',
+    rating: 4.7,
+    ratingCount: 51,
+  ),
+  _CatalogService(
+    name: 'Sofa & Upholstery Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Home Service',
+    rating: 4.6,
+    ratingCount: 44,
+  ),
+  _CatalogService(
+    name: 'General Handyman',
+    category: 'Repairs',
+    serviceType: 'at_customer',
+    location: 'Nearby',
+    rating: 4.5,
+    ratingCount: 95,
+  ),
+  _CatalogService(
+    name: 'Water Tank Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Household Service',
+    rating: 4.4,
+    ratingCount: 32,
+  ),
+  _CatalogService(
+    name: 'Home CCTV Setup',
+    category: 'Security',
+    serviceType: 'at_customer',
+    location: 'Installation Support',
+    rating: 4.6,
+    ratingCount: 27,
+  ),
+  _CatalogService(
+    name: 'Car Wash',
+    category: 'Car Care',
+    serviceType: 'at_customer',
+    location: 'Doorstep Service',
+    rating: 4.5,
+    ratingCount: 64,
+  ),
+  _CatalogService(
+    name: 'Car Wash Spa',
+    category: 'Car Care',
+    serviceType: 'at_customer',
+    location: 'Premium Service',
+    rating: 4.7,
+    ratingCount: 52,
+  ),
+  _CatalogService(
+    name: 'House Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Full Home',
+    rating: 4.6,
+    ratingCount: 110,
+  ),
+  _CatalogService(
+    name: 'Bathroom Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Hygiene Focus',
+    rating: 4.5,
+    ratingCount: 74,
+  ),
+  _CatalogService(
+    name: 'Kitchen Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Degrease Service',
+    rating: 4.4,
+    ratingCount: 60,
+  ),
+  _CatalogService(
+    name: 'Sofa Cleaning',
+    category: 'Cleaning',
+    serviceType: 'at_customer',
+    location: 'Fabric Care',
+    rating: 4.6,
+    ratingCount: 48,
+  ),
+  _CatalogService(
+    name: 'RO Water Service',
+    category: 'Appliance',
+    serviceType: 'at_customer',
+    location: 'Filter Replacement',
+    rating: 4.5,
+    ratingCount: 55,
+  ),
+  _CatalogService(
+    name: 'Geyser Repair',
+    category: 'Appliance',
+    serviceType: 'at_customer',
+    location: 'Home Visit',
+    rating: 4.5,
+    ratingCount: 43,
+  ),
+  _CatalogService(
+    name: 'Microwave Service',
+    category: 'Appliance',
+    serviceType: 'at_customer',
+    location: 'Quick Fix',
+    rating: 4.4,
+    ratingCount: 31,
+  ),
+  _CatalogService(
+    name: 'Laptop Repair',
+    category: 'Electronics',
+    serviceType: 'at_customer',
+    location: 'Pickup Available',
+    rating: 4.6,
+    ratingCount: 39,
+  ),
+  _CatalogService(
+    name: 'Phone Repair',
+    category: 'Electronics',
+    serviceType: 'at_customer',
+    location: 'Screen and Battery',
+    rating: 4.5,
+    ratingCount: 71,
+  ),
+  _CatalogService(
+    name: 'Painting Service',
+    category: 'Painting',
+    serviceType: 'at_customer',
+    location: 'Interior Walls',
+    rating: 4.4,
+    ratingCount: 58,
+  ),
+  _CatalogService(
+    name: 'Plumbing Repair',
+    category: 'Plumbing',
+    serviceType: 'at_customer',
+    location: 'Leak Fix',
+    rating: 4.6,
+    ratingCount: 83,
+  ),
+  _CatalogService(
+    name: 'Electrical Repair',
+    category: 'Electrical',
+    serviceType: 'at_customer',
+    location: 'Wiring and Switches',
+    rating: 4.5,
+    ratingCount: 69,
+  ),
+  _CatalogService(
+    name: 'Pest Control',
+    category: 'Pest Control',
+    serviceType: 'at_customer',
+    location: 'Safe Treatment',
+    rating: 4.3,
+    ratingCount: 56,
+  ),
+  _CatalogService(
+    name: 'Gardening Service',
+    category: 'Gardening',
+    serviceType: 'at_customer',
+    location: 'Lawn Care',
+    rating: 4.4,
+    ratingCount: 33,
+  ),
+];
+
+class ViewServicesScreen extends StatefulWidget {
   const ViewServicesScreen({super.key});
+
+  @override
+  State<ViewServicesScreen> createState() => _ViewServicesScreenState();
+}
+
+class _ViewServicesScreenState extends State<ViewServicesScreen> {
+  bool _seeding = false;
+  bool _autoSeedChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeAutoSeed();
+    });
+  }
+
+  Future<void> _maybeAutoSeed() async {
+    if (_autoSeedChecked) return;
+    _autoSeedChecked = true;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (!userDoc.exists) return;
+
+      final data = userDoc.data() as Map<String, dynamic>;
+      final role = (data['role'] as String?) ?? '';
+      if (role != 'Service Provider') return;
+
+      final existing = await FirebaseFirestore.instance
+          .collection('services')
+          .where('providerId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) return;
+
+      final providerName =
+          (data['username'] as String?)?.trim().isNotEmpty == true
+              ? (data['username'] as String).trim()
+              : (user.displayName ?? 'Service Provider');
+
+      if (!mounted) return;
+      await _seedDemoServices(
+        context: context,
+        providerId: user.uid,
+        providerName: providerName,
+      );
+    } catch (_) {
+      // Auto-seed is best-effort only
+    }
+  }
+
+  Future<void> _seedDemoServices({
+    required BuildContext context,
+    required String providerId,
+    required String providerName,
+  }) async {
+    if (_seeding) return;
+    setState(() => _seeding = true);
+
+    try {
+      final existing = await FirebaseFirestore.instance
+          .collection('services')
+          .where('providerId', isEqualTo: providerId)
+          .where('seedTag', isEqualTo: 'demo-v1')
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Demo services already added.')),
+          );
+        }
+        return;
+      }
+
+      final batch = FirebaseFirestore.instance.batch();
+      final servicesRef = FirebaseFirestore.instance.collection('services');
+
+      for (final s in _demoSeedServices) {
+        final doc = servicesRef.doc();
+        batch.set(doc, {
+          'providerId': providerId,
+          'providerName': providerName,
+          'serviceName': s.name,
+          'description': s.description,
+          'serviceImageUrl': s.imageUrl,
+          'category': s.category,
+          'categoryName': s.category,
+          'serviceType': s.serviceType,
+          'isAvailable': true,
+          'addressDisplay': 'Service at your location',
+          'seedTag': 'demo-v1',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Demo services added successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add demo services: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
+  }
+
+  Widget _buildSeedDemoBanner() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final role = (data['role'] as String?) ?? '';
+        if (role != 'Service Provider') return const SizedBox.shrink();
+
+        final providerName =
+            (data['username'] as String?)?.trim().isNotEmpty == true
+                ? (data['username'] as String).trim()
+                : (user.displayName ?? 'Service Provider');
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.deepPurple.shade100),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Add demo services so customers can book immediately.',
+                  style: TextStyle(
+                    color: Colors.deepPurple.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _seeding
+                    ? null
+                    : () => _seedDemoServices(
+                          context: context,
+                          providerId: user.uid,
+                          providerName: providerName,
+                        ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                child: _seeding
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Add Demo'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,12 +645,7 @@ class ViewServicesScreen extends StatelessWidget {
             return const Center(child: Text('Something went wrong.'));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No services available yet.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-            );
+            return _buildCatalogFallback(context);
           }
 
           // Filter out services with 'Uncategorized' category
@@ -41,15 +656,14 @@ class ViewServicesScreen extends StatelessWidget {
           }).toList();
 
           if (services.isEmpty) {
-            return const Center(
-              child: Text(
-                'No services available.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            );
+            return _buildCatalogFallback(context);
           }
 
-          return GridView.builder(
+          return Column(
+            children: [
+              _buildSeedDemoBanner(),
+              Expanded(
+                child: GridView.builder(
             padding: const EdgeInsets.all(16.0),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
@@ -103,9 +717,73 @@ class ViewServicesScreen extends StatelessWidget {
 
               // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
             },
-          );
+          ),
+        ),
+      ],
+    );
         },
       ),
+    );
+  }
+
+  Widget _buildCatalogFallback(BuildContext context) {
+    return Column(
+      children: [
+        _buildSeedDemoBanner(),
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.deepPurple.shade100),
+          ),
+          child: Text(
+            'Live provider services are currently limited. Showing expanded service catalog.',
+            style: TextStyle(
+              color: Colors.deepPurple.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16.0),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: _fallbackCatalogServices.length,
+            itemBuilder: (context, index) {
+              final service = _fallbackCatalogServices[index];
+              return GestureDetector(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${service.name} is available in catalog mode. A provider listing is required to book.',
+                      ),
+                    ),
+                  );
+                },
+                child: ServiceCard(
+                  serviceId: 'catalog-$index',
+                  serviceName: service.name,
+                  category: service.category,
+                  providerId: '',
+                  serviceType: service.serviceType,
+                  location: service.location,
+                  rating: service.rating,
+                  ratingCount: service.ratingCount,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
