@@ -9,14 +9,14 @@ import 'package:serviceprovider/login_screen.dart';
 import 'package:serviceprovider/profile_screen.dart';
 import 'package:serviceprovider/view_services_screen.dart';
 import 'package:serviceprovider/my_requests_screen.dart';
-import 'package:serviceprovider/payment_history_screen.dart';
 import 'package:serviceprovider/service_search_screen.dart';
 import 'package:serviceprovider/customer_notifications_screen.dart';
 import 'package:serviceprovider/customer_view_service_screen.dart';
+import 'package:serviceprovider/cart_screen.dart';
+import 'package:serviceprovider/payment_history_screen.dart';
+import 'package:serviceprovider/chats_screen.dart';
 import 'package:serviceprovider/self_fix_screen.dart';
 import 'package:serviceprovider/self_fix_chatbot_screen.dart';
-import 'package:serviceprovider/chats_screen.dart';
-// Notifications screen removed from Customer Dashboard
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({super.key});
@@ -374,6 +374,8 @@ class _UserDashboardState extends State<UserDashboard> {
       _pages = [
         _buildHomeWithAssistant(),
         const MyRequestsScreen(),
+        const CustomerNotificationsScreen(),
+        const CartScreen(),
         const ProfileScreen(),
       ];
       if (mounted) setState(() => _isLoading = false);
@@ -458,6 +460,14 @@ class _UserDashboardState extends State<UserDashboard> {
             label: 'My Requests',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.notifications_none_rounded),
+            label: 'Notification',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.shopping_cart_outlined),
+            label: 'Shop',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.person_outline_rounded),
             label: 'Profile',
           ),
@@ -493,6 +503,8 @@ class _UserDashboardState extends State<UserDashboard> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         _buildHeader(),
+        _buildSectionTitle("Quick Actions"),
+        _buildQuickActionsGrid(),
         _buildSectionTitle("Featured"),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -507,8 +519,6 @@ class _UserDashboardState extends State<UserDashboard> {
         _buildCategoryList(),
         _buildSectionTitle("Popular Services"),
         _buildPopularServicesList(),
-        _buildSectionTitle("Quick Actions"),
-        _buildDashboardGrid(),
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
       ],
     );
@@ -636,6 +646,357 @@ class _UserDashboardState extends State<UserDashboard> {
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
               color: Colors.grey[800]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsGrid() {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.34,
+        ),
+        delegate: SliverChildListDelegate(
+          [
+            _buildQuickActionCard(
+              title: 'View All Services',
+              subtitle: 'Browse providers',
+              icon: Icons.design_services_rounded,
+              color: Colors.indigo,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ViewServicesScreen()),
+                );
+              },
+            ),
+            _buildQuickActionCard(
+              title: 'My Requests',
+              subtitle: 'Track bookings',
+              icon: Icons.list_alt_rounded,
+              color: Colors.teal,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
+                );
+              },
+            ),
+            _buildQuickActionCard(
+              title: 'Payment',
+              subtitle: 'View payment status',
+              icon: Icons.payments_rounded,
+              color: Colors.orange,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaymentHistoryScreen()),
+                );
+              },
+            ),
+            _buildNotificationsQuickActionCard(),
+            _buildChatQuickActionCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationsQuickActionCard() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return _buildQuickActionCard(
+        title: 'Notifications',
+        subtitle: 'Check updates',
+        icon: Icons.notifications_active_rounded,
+        color: Colors.deepPurple,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerNotificationsScreen()),
+          );
+        },
+      );
+    }
+
+    final stream = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: uid)
+        .where('isRead', isEqualTo: false)
+        .limit(100)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final unread = snapshot.hasData ? snapshot.data!.docs.length : 0;
+        return _buildQuickActionCard(
+          title: 'Notifications',
+          subtitle: 'Check updates',
+          icon: Icons.notifications_active_rounded,
+          color: Colors.deepPurple,
+          badgeCount: unread,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CustomerNotificationsScreen()),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildChatQuickActionCard() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return _buildQuickActionCard(
+        title: 'Chat',
+        subtitle: 'Message providers',
+        icon: Icons.chat_bubble_outline_rounded,
+        color: Colors.teal,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
+          );
+        },
+      );
+    }
+
+    final stream = FirebaseFirestore.instance
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        var unread = 0;
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final Timestamp? lastTs = data['lastMessageAt'] as Timestamp?;
+            final String lastSenderId = (data['lastSenderId'] as String?) ?? '';
+            if (lastTs == null || lastSenderId == uid) continue;
+            final Timestamp? lastRead = data['lastReadAtCustomer'] as Timestamp?;
+            if (lastRead == null || lastTs.toDate().isAfter(lastRead.toDate())) {
+              unread++;
+            }
+          }
+        }
+
+        return _buildQuickActionCard(
+          title: 'Chat',
+          subtitle: 'Message providers',
+          icon: Icons.chat_bubble_outline_rounded,
+          color: Colors.teal,
+          badgeCount: unread,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickActionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    final Color soft = Color.lerp(color, Colors.white, 0.82)!;
+    final Color surface = Color.lerp(color, Colors.white, 0.93)!;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        splashColor: color.withOpacity(0.12),
+        highlightColor: color.withOpacity(0.06),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              colors: [Colors.white, soft, surface],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: color.withOpacity(0.16), width: 1.1),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 7),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -18,
+                top: -18,
+                child: Container(
+                  width: 78,
+                  height: 78,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withOpacity(0.10),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -24,
+                bottom: -26,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withOpacity(0.08),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [color.withOpacity(0.95), color.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.30),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(icon, color: Colors.white, size: 21),
+                        ),
+                        const Spacer(),
+                        if (badgeCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              badgeCount > 99 ? '99+' : '$badgeCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[850],
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 11.4,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'Open',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 10.2,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(color: color.withOpacity(0.2)),
+                          ),
+                          child: Icon(
+                            Icons.arrow_outward_rounded,
+                            size: 16,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1055,192 +1416,6 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildDashboardGrid() {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-      sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          // Slightly squarer cards to match the reference design
-          childAspectRatio: 0.95,
-        ),
-        delegate: SliverChildListDelegate([
-          _buildDashboardCard(
-            title: "View All Services",
-            icon: Icons.apps_rounded,
-            color: Colors.blue,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ViewServicesScreen())),
-          ),
-          _buildDashboardCard(
-            title: "Payment",
-            icon: Icons.history_rounded,
-            color: Colors.green,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const PaymentHistoryScreen())),
-          ),
-          _buildDashboardCard(
-            title: "Service Timeline",
-            icon: Icons.timeline_rounded,
-            color: Colors.deepPurple,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-            ),
-          ),
-          _buildChatDashboardCard(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildChatDashboardCard() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return _buildDashboardCard(
-        title: "Chats",
-        icon: Icons.chat_bubble_outline,
-        color: Colors.teal,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
-        ),
-      );
-    }
-
-    final stream = FirebaseFirestore.instance
-        .collection('chats')
-        .where('participants', arrayContains: uid)
-        .snapshots();
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: stream,
-      builder: (context, snapshot) {
-        int unread = 0;
-        if (snapshot.hasData) {
-          for (final doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final Timestamp? lastTs = data['lastMessageAt'] as Timestamp?;
-            final String lastSenderId = (data['lastSenderId'] as String?) ?? '';
-            if (lastTs == null || lastSenderId == uid) continue;
-            final Timestamp? lastRead = data['lastReadAtCustomer'] as Timestamp?;
-            if (lastRead == null || lastTs.toDate().isAfter(lastRead.toDate())) {
-              unread++;
-            }
-          }
-        }
-
-        return _buildDashboardCard(
-          title: "Chats",
-          icon: Icons.chat_bubble_outline,
-          color: Colors.teal,
-          badgeCount: unread,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChatsScreen(role: ChatRole.customer)),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDashboardCard({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    int? badgeCount,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double w = constraints.maxWidth;
-        final double pad = (w * 0.08).clamp(12.0, 18.0);
-        final double avatarSize = (w * 0.34).clamp(54.0, 66.0);
-        final double iconSize = (avatarSize * 0.5).clamp(26.0, 32.0);
-        final double gap = (w * 0.08).clamp(12.0, 16.0);
-        final double fontSize = (w * 0.095).clamp(13.0, 16.0);
-        final double titleHeight = (fontSize * 2.6).clamp(32.0, 40.0);
-
-        return Stack(
-          children: [
-            Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: onTap,
-                child: Ink(
-                  padding: EdgeInsets.symmetric(horizontal: pad, vertical: pad),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                    Container(
-                      width: avatarSize,
-                      height: avatarSize,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.16),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(icon, size: iconSize, color: color),
-                    ),
-                    SizedBox(height: gap),
-                    SizedBox(
-                      height: titleHeight,
-                      child: Center(
-                        child: Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            if (badgeCount != null && badgeCount > 0)
-              Positioned(
-                right: 10,
-                top: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    badgeCount > 99 ? '99+' : badgeCount.toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
 }
 
 class _SelfFixAssistantButton extends StatefulWidget {

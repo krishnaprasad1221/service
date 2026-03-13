@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'take_complaint_statement_screen.dart';
 import 'create_billing_screen.dart';
+import 'services/provider_live_tracking_service.dart';
 // ServiceTimelineWidget removed from provider booking details
 
 class BookingDetailScreen extends StatelessWidget {
@@ -314,6 +315,10 @@ class BookingDetailScreen extends StatelessWidget {
                       final reqRef = FirebaseFirestore.instance.collection('serviceRequests').doc(requestId);
                       try {
                         await reqRef.update(updates);
+                        await ProviderLiveTrackingService.instance.onStatusChanged(
+                          requestId: requestId,
+                          newStatus: newStatus,
+                        );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status updated')));
                         }
@@ -913,6 +918,10 @@ class _ActionRow extends StatelessWidget {
     // Tracking ID feature removed
     try {
       await reqRef.update(updates);
+      await ProviderLiveTrackingService.instance.onStatusChanged(
+        requestId: requestId,
+        newStatus: newStatus,
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Status updated')),

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'widgets/service_timeline_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'booking_detail_screen.dart';
+import 'customer_live_tracking_screen.dart';
 
 class MyRequestsScreen extends StatelessWidget {
   const MyRequestsScreen({super.key});
@@ -92,6 +93,14 @@ class MyRequestsScreen extends StatelessWidget {
                   : 'Not scheduled yet';
 
               final String status = (data['status'] as String?) ?? 'pending';
+              final tracking = (data['tracking'] is Map)
+                  ? Map<String, dynamic>.from(data['tracking'] as Map)
+                  : <String, dynamic>{};
+              final int? etaMinutes =
+                  (tracking['etaMinutes'] is num) ? (tracking['etaMinutes'] as num).toInt() : null;
+              final int? deviationMinutes =
+                  (tracking['deviationMinutes'] is num) ? (tracking['deviationMinutes'] as num).toInt() : null;
+              final bool canTrackLive = status == 'on_the_way' || status == 'arrived';
               // trackingId removed from UI
 
               return Card(
@@ -137,6 +146,42 @@ class MyRequestsScreen extends StatelessWidget {
                         expectedCompletionAt: expectedCompletionTs?.toDate(),
                       );
                     }),
+                    if (canTrackLive) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.my_location, size: 18),
+                            label: const Text('Track Live'),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CustomerLiveTrackingScreen(requestId: doc.id),
+                                ),
+                              );
+                            },
+                          ),
+                          if (etaMinutes != null) ...[
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                deviationMinutes != null && deviationMinutes >= 10
+                                    ? 'ETA ~ $etaMinutes min (delay +$deviationMinutes min)'
+                                    : 'ETA ~ $etaMinutes min',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: (deviationMinutes != null && deviationMinutes >= 10)
+                                      ? Colors.redAccent
+                                      : Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -464,4 +509,3 @@ class _StepRow extends StatelessWidget {
     );
   }
 }
-

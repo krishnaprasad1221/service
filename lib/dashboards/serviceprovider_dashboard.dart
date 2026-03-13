@@ -20,6 +20,7 @@ import '../provider_notifications_screen.dart';
 import '../booking_detail_screen.dart';
 import '../on_time_bookings_screen.dart';
 import '../chats_screen.dart';
+import '../services/provider_live_tracking_service.dart';
 
 class ServiceProviderDashboard extends StatefulWidget {
   const ServiceProviderDashboard({super.key});
@@ -704,9 +705,14 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
             _pages = [
               _DashboardHomeTab(username: _username, profileImageUrl: _profileImageUrl),
               const _ManageBookingsTab(), // This will now be the updated widget
+              const ProviderNotificationsScreen(),
               const ServiceProviderProfileScreen(),
             ];
           });
+        }
+        if ((data['isApproved'] ?? false) == true) {
+          await ProviderLiveTrackingService.instance
+              .resumeActiveTrackingForCurrentProvider();
         }
       } else {
         if (mounted) setState(() => _isLoading = false);
@@ -715,6 +721,12 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
       print("Error checking approval status: $e");
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(ProviderLiveTrackingService.instance.stopAllTracking());
+    super.dispose();
   }
 
   void _onItemTapped(int index) {
@@ -753,6 +765,7 @@ class _ServiceProviderDashboardState extends State<ServiceProviderDashboard> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
             BottomNavigationBarItem(icon: Icon(Icons.calendar_today_rounded), label: 'Bookings'),
+            BottomNavigationBarItem(icon: Icon(Icons.notifications_none_rounded), label: 'Notification'),
             BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
           ],
         ),
@@ -1113,15 +1126,6 @@ class _DashboardHomeTab extends StatelessWidget {
   }
 
   Widget _buildQuickActionsGrid(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    const double horizontalPadding = 12.0 * 2;
-    const double spacing = 10.0;
-    const int crossAxisCount = 2;
-    final double itemWidth =
-        (size.width - horizontalPadding - (spacing * (crossAxisCount - 1))) /
-            crossAxisCount;
-    final double cardHeight = (itemWidth * 0.98).clamp(148.0, 178.0).toDouble();
-
     final actions = [
       {
         'title': 'Add New Service',
@@ -1173,17 +1177,17 @@ class _DashboardHomeTab extends StatelessWidget {
       );
     }).toList();
 
-    // Keep chat actions closer to other communication-related items.
-    cards.insert(3, _buildChatActionCard(context));
+    // Match customer dashboard arrangement: chat card appears as the final quick action tile.
+    cards.add(_buildChatActionCard(context));
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
       sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: spacing,
-          mainAxisSpacing: spacing,
-          mainAxisExtent: cardHeight,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.95,
         ),
         delegate: SliverChildListDelegate(cards),
       ),
@@ -1396,6 +1400,10 @@ class _BookingList extends StatelessWidget {
 
     try {
       await docRef.update(updates);
+      await ProviderLiveTrackingService.instance.onStatusChanged(
+        requestId: docId,
+        newStatus: newStatus,
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Status updated')),
@@ -1506,6 +1514,18 @@ class _BookingList extends StatelessWidget {
           return db.compareTo(da);
         });
 
+        // Auto-bootstrap tracking for active journeys (covers On Time auto-start cases).
+        for (final doc in filtered) {
+          final data = doc.data() as Map<String, dynamic>;
+          final st = (data['status'] as String?) ?? 'pending';
+          if (st == 'on_the_way' &&
+              !ProviderLiveTrackingService.instance.isTracking(doc.id)) {
+            unawaited(
+              ProviderLiveTrackingService.instance.ensureTrackingForRequest(doc.id),
+            );
+          }
+        }
+
         return ListView.builder(
           itemCount: filtered.length,
           itemBuilder: (context, index) {
@@ -1520,10 +1540,6 @@ class _BookingList extends StatelessWidget {
 
   Widget _buildBookingCard(
       BuildContext context, String docId, Map<String, dynamic> data) {
-    final scheduledDate = (data['scheduledDateTime'] as Timestamp).toDate();
-    final scheduledDateStr = DateFormat.yMMMd().format(scheduledDate);
-    final scheduledTimeStr = DateFormat.jm().format(scheduledDate);
-
     DateTime? requestedDate;
     String? requestedDateStr;
     String? requestedTimeStr;
@@ -1662,17 +1678,6 @@ class _BookingList extends StatelessWidget {
                     customerId: data['customerId'],
                     fallbackName: data['customerName'] ?? 'Customer',
                     bookingData: data,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.event, size: 18, color: Colors.black54),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text('$scheduledDateStr at $scheduledTimeStr',
-                            style: const TextStyle(fontSize: 14)),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -2276,12 +2281,13 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-    final double w = constraints.maxWidth;
-    final double pad = (w * 0.08).clamp(12.0, 16.0);
-    final double avatarSize = (w * 0.36).clamp(52.0, 66.0);
-    final double iconSize = (avatarSize * 0.56).clamp(24.0, 34.0);
+        final double w = constraints.maxWidth;
+        final double pad = (w * 0.08).clamp(12.0, 18.0);
+        final double avatarSize = (w * 0.34).clamp(54.0, 66.0);
+        final double iconSize = (avatarSize * 0.5).clamp(26.0, 32.0);
         final double gap = (w * 0.08).clamp(10.0, 16.0);
-        final double fontSize = (w * 0.10).clamp(12.0, 15.0);
+        final double fontSize = (w * 0.095).clamp(13.0, 16.0);
+        final double titleHeight = (fontSize * 2.6).clamp(32.0, 40.0);
 
         return Stack(
           children: [
@@ -2307,28 +2313,33 @@ class _ActionCard extends StatelessWidget {
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
                         width: avatarSize,
                         height: avatarSize,
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.14),
+                          color: color.withOpacity(0.16),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(icon, size: iconSize, color: color),
                       ),
                       SizedBox(height: gap),
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: fontSize,
-                          height: 1.15,
+                      SizedBox(
+                        height: titleHeight,
+                        child: Center(
+                          child: Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: fontSize,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -2337,8 +2348,8 @@ class _ActionCard extends StatelessWidget {
             ),
             if (badgeCount != null && badgeCount! > 0)
               Positioned(
-                right: 8,
-                top: 8,
+                right: 10,
+                top: 10,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(

@@ -29,7 +29,7 @@ class CustomerViewServiceScreen extends StatelessWidget {
           final String serviceName = (data['serviceName'] as String?) ?? 'Service';
           final String? imageUrl = data['serviceImageUrl'] as String?;
           final String description = (data['description'] as String?) ?? 'No description available.';
-          final String providerId = (data['providerId'] as String?) ?? '';
+          final String providerId = _resolveProviderId(data);
           final String? serviceType = data['serviceType'] as String?;
           final String? addressDisplay = (data['addressDisplay'] as String?) ?? (data['locationAddress'] as String?);
           final String? categoryName = data['categoryName'] as String? ?? data['category'] as String?;
@@ -718,6 +718,14 @@ class CustomerViewServiceScreen extends StatelessWidget {
           shadowColor: Colors.black.withOpacity(0.12),
         ),
         onPressed: () {
+          if (providerId.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This service is not linked to a provider yet.'),
+              ),
+            );
+            return;
+          }
           if (requireTerms && !_termsAccepted.value) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Please accept the Terms & Conditions before booking.')),
@@ -740,6 +748,20 @@ class CustomerViewServiceScreen extends StatelessWidget {
         label: const Text("Book This Service", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
       ),
     );
+  }
+
+  String _resolveProviderId(Map<String, dynamic> data) {
+    final List<dynamic> candidates = [
+      data['providerId'],
+      data['ownerId'],
+      data['uid'],
+      data['userId'],
+    ];
+    for (final c in candidates) {
+      final v = c?.toString().trim() ?? '';
+      if (v.isNotEmpty) return v;
+    }
+    return '';
   }
 }
 

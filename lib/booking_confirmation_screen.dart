@@ -232,6 +232,16 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       return;
     }
 
+    final String providerId = widget.providerId.trim();
+    if (providerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This service is not linked to a provider.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -260,7 +270,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
         try {
           final q = await FirebaseFirestore.instance
               .collection('serviceRequests')
-              .where('providerId', isEqualTo: widget.providerId)
+              .where('providerId', isEqualTo: providerId)
               .where('status', whereIn: ['pending', 'accepted'])
               .where('scheduledDateTime', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
               .where('scheduledDateTime', isLessThanOrEqualTo: Timestamp.fromDate(dayEnd))
@@ -314,7 +324,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
           await FirebaseFirestore.instance.collection('serviceRequests').add({
         'serviceId': widget.serviceId,
         'serviceName': widget.serviceName,
-        'providerId': widget.providerId,
+        'providerId': providerId,
         'customerId': user.uid,
         'customerName': user.displayName ?? 'N/A',
         'bookingTimestamp': FieldValue.serverTimestamp(),
@@ -361,7 +371,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
 
       // Provider notification
       await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': widget.providerId,
+        'userId': providerId,
         'createdBy': user.uid,
         'type': 'booking_created',
         'title': 'New booking request',

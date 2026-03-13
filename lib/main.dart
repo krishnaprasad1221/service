@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:serviceprovider/auth_wrapper.dart'; // <-- IMPORT THE NEW WRAPPER
 import 'package:serviceprovider/welcome_screen.dart';
+import 'package:serviceprovider/widgets/web_wrapper.dart';
 
 import 'firebase_options.dart'; // From FlutterFire CLI
 import 'services/push_notification_service.dart';
@@ -38,6 +39,10 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity, // Good for modern UI
       ),
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        return WebWrapper(child: child);
+      },
       // Start at a polished WelcomeScreen, then it navigates to AuthWrapper.
       home: const WelcomeScreen(),
     );

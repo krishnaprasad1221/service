@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:serviceprovider/dashboards/admin_dashboard.dart';
+import 'package:serviceprovider/dashboards/shop_manager_dashboard.dart';
 import 'package:serviceprovider/dashboards/serviceprovider_dashboard.dart';
 import 'package:serviceprovider/edit_profile_screen.dart';
 import 'package:serviceprovider/login_screen.dart';
@@ -42,6 +43,8 @@ class AuthWrapper extends StatelessWidget {
                 // Route based on role from Firestore
                 if (userRole == 'Admin') {
                   return const AdminDashboard();
+                } else if (userRole == 'Shop Manager') {
+                  return const ShopManagerDashboard();
                 } else if (userRole == 'User') {
                   return const UserDashboard();
                 } else if (userRole == 'Service Provider') {

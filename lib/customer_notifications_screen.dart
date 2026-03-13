@@ -105,6 +105,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                 case 'rating_request':
                   leadingIcon = Icons.star_rate; // rate and review request
                   break;
+                case 'eta_deviation':
+                  leadingIcon = Icons.route;
+                  break;
                 case 'system':
                   leadingIcon = Icons.info_outline;
                   break;

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // google_sign_in not required when using FirebaseAuth signInWithProvider on mobile
 
 import 'package:serviceprovider/dashboards/admin_dashboard.dart';
+import 'package:serviceprovider/dashboards/shop_manager_dashboard.dart';
 import 'package:serviceprovider/dashboards/serviceprovider_dashboard.dart';
 import 'package:serviceprovider/edit_profile_screen.dart';
 import 'package:serviceprovider/register_screen.dart';
@@ -18,6 +19,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  static const String _shopManagerEmail = 'shop@gmail.com';
+  static const String _shopManagerPassword = 'Shop@gmail.com';
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -49,6 +53,35 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final String password = _passwordController.text.trim();
 
     try {
+      if (email.toLowerCase() == _shopManagerEmail &&
+          password == _shopManagerPassword) {
+        final shopQuery = await FirebaseFirestore.instance
+            .collection('shop')
+            .where('email', isEqualTo: _shopManagerEmail)
+            .limit(1)
+            .get();
+
+        if (shopQuery.docs.isEmpty) {
+          throw Exception(
+            'Shop account not found in shop collection.',
+          );
+        }
+
+        final shopData = shopQuery.docs.first.data();
+        final String shopRole =
+            (shopData['role'] as String? ?? '').toLowerCase();
+        if (shopRole != 'shop') {
+          throw Exception('Invalid shop role in shop collection.');
+        }
+
+        if (!mounted) return;
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ShopManagerDashboard()),
+        );
+        return;
+      }
+
       final userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
@@ -70,6 +103,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       switch (userRole) {
         case "Admin":
           nextScreen = const AdminDashboard();
+          break;
+        case "Shop Manager":
+        case "shop":
+          nextScreen = const ShopManagerDashboard();
           break;
         case "Customer":
           nextScreen = const UserDashboard();

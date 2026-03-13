@@ -11,7 +11,7 @@ import 'package:serviceprovider/repair_guide_screen.dart';
 import 'package:serviceprovider/view_services_screen.dart';
 import 'package:serviceprovider/service_search_screen.dart';
 import 'package:serviceprovider/my_requests_screen.dart';
-import 'package:serviceprovider/booking_detail_screen.dart';
+import 'package:serviceprovider/customer_view_service_screen.dart';
 
 class SelfFixChatbotScreen extends StatefulWidget {
   const SelfFixChatbotScreen({super.key});
@@ -129,6 +129,33 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     'cm',
     'mm',
   };
+  static const Set<String> _knownBrandTokens = {
+    'acer',
+    'apple',
+    'asus',
+    'dell',
+    'hp',
+    'lenovo',
+    'msi',
+    'samsung',
+    'sony',
+    'toshiba',
+    'huawei',
+    'xiaomi',
+    'oneplus',
+    'oppo',
+    'vivo',
+    'realme',
+    'nokia',
+    'lg',
+    'panasonic',
+    'whirlpool',
+    'haier',
+    'bosch',
+    'godrej',
+    'voltas',
+    'daikin',
+  };
 
   @override
   void initState() {
@@ -195,7 +222,10 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await _openServiceFromSuggestions(doc.id);
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -211,6 +241,17 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openServiceFromSuggestions(String serviceId) async {
+    final id = serviceId.trim();
+    if (id.isEmpty || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerViewServiceScreen(serviceId: id),
+      ),
     );
   }
 
@@ -611,8 +652,11 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
         final len = b.length.compareTo(a.length);
         return len != 0 ? len : a.compareTo(b);
       });
-    if (list.length > 10) return list.sublist(0, 10);
-    return list;
+    final knownFirst = list.where((t) => _knownBrandTokens.contains(t)).toList();
+    final other = list.where((t) => !_knownBrandTokens.contains(t)).toList();
+    final ordered = <String>[...knownFirst, ...other];
+    if (ordered.length > 10) return ordered.sublist(0, 10);
+    return ordered;
   }
 
   bool _textContainsToken(String text, String token) {
@@ -654,6 +698,11 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     addField(data['subCategoryName']);
     addField(data['subCategoryNames']);
     addField(data['providerName']);
+    addField(data['brand']);
+    addField(data['brandName']);
+    addField(data['supportedBrand']);
+    addField(data['supportedBrands']);
+    addField(data['brands']);
 
     final combined = buffer.toString();
     for (final token in tokens) {
@@ -815,24 +864,32 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
     return snapshot.docs;
   }
 
+  String? _mapApplianceToCategory(String applianceLabel) {
+    final labelLower = applianceLabel.toLowerCase();
+    if (labelLower.contains('laptop')) {
+      return 'Laptop';
+    }
+    if (labelLower.contains('mobile') || labelLower.contains('phone')) {
+      return 'Mobile Phone';
+    }
+    if (labelLower.contains('ac') || labelLower.contains('air conditioner')) {
+      return 'AC';
+    }
+    if (labelLower.contains('fridge') || labelLower.contains('refrigerator')) {
+      return 'Refrigerator';
+    }
+    if (labelLower.contains('washing')) {
+      return 'Washing Machine';
+    }
+    return null;
+  }
+
   Future<void> _suggestProvidersForAppliance(
       String applianceLabel, {
       List<String> brandTokens = const [],
   }) async {
-    final labelLower = applianceLabel.toLowerCase();
-
-    String? mappedCategory;
-    if (labelLower.contains('laptop')) {
-      mappedCategory = 'Laptop';
-    } else if (labelLower.contains('mobile') || labelLower.contains('phone')) {
-      mappedCategory = 'Mobile Phone';
-    } else if (labelLower.contains('ac') || labelLower.contains('air conditioner')) {
-      mappedCategory = 'AC';
-    } else if (labelLower.contains('fridge') || labelLower.contains('refrigerator')) {
-      mappedCategory = 'Refrigerator';
-    } else if (labelLower.contains('washing')) {
-      mappedCategory = 'Washing Machine';
-    }
+    final String? mappedCategory = _mapApplianceToCategory(applianceLabel);
+    final bool hasBrandSignals = brandTokens.any((t) => t.trim().isNotEmpty);
 
     try {
       List<QueryDocumentSnapshot> brandSelected = const [];
@@ -849,6 +906,44 @@ class _SelfFixChatbotScreenState extends State<SelfFixChatbotScreen> {
           final brand = _pickBestBrandToken(brandTokens, brandSelected);
           brandLabel = brand == null ? null : _formatBrandLabel(brand);
         }
+      }
+
+      if (hasBrandSignals && brandSelected.isNotEmpty) {
+        final display = brandSelected.take(10).toList();
+        final buffer = StringBuffer();
+        if (brandLabel != null && brandLabel.isNotEmpty) {
+          buffer.writeln(
+            'I detected "$brandLabel" from the photo. Showing only "$brandLabel $applianceLabel" services:',
+          );
+        } else {
+          buffer.writeln(
+            'I detected brand text in the photo. Showing only brand-matched "$applianceLabel" services:',
+          );
+        }
+
+        for (final doc in display) {
+          final data = doc.data() as Map<String, dynamic>;
+          final name = (data['serviceName'] as String?) ?? 'Service';
+          final location = (data['addressDisplay'] as String?) ??
+              (data['locationAddress'] as String?) ??
+              '';
+          buffer.write('- $name');
+          if (location.isNotEmpty) buffer.write(' Â· $location');
+          buffer.writeln();
+        }
+
+        buffer.writeln('Tap "Book" to continue with the matching brand servicer.');
+        _addBotMessage(buffer.toString());
+        if (mounted) {
+          _showServiceBasedProvidersSheet(display, applianceLabel);
+        }
+        return;
+      }
+
+      if (hasBrandSignals && brandSelected.isEmpty) {
+        _addBotMessage(
+          'I detected brand text from your photo, but an exact brand-only service is not listed right now. Showing the closest available "$applianceLabel" services.',
+        );
       }
 
       // First, try to fetch active providers that explicitly support this

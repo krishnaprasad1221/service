@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'booking_detail_screen.dart';
+import 'services/provider_live_tracking_service.dart';
 
 class OnTimeBookingsScreen extends StatelessWidget {
   const OnTimeBookingsScreen({super.key});
@@ -65,6 +66,10 @@ class OnTimeBookingsScreen extends StatelessWidget {
 
     try {
       await docRef.update(updates);
+      await ProviderLiveTrackingService.instance.onStatusChanged(
+        requestId: docId,
+        newStatus: newStatus,
+      );
 
       // Notify customer
       final snap = await docRef.get();

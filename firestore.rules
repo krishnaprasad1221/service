@@ -18,6 +18,20 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Service Provider';
     }
 
+    function isShopManager() {
+      return isSignedIn() &&
+             (
+               request.auth.token.email == 'shop@gmail.com' ||
+               (
+                 exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                 (
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'shop' ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Shop Manager'
+                 )
+               )
+             );
+    }
+
     // ---- Lightweight validators (non-breaking) ----
     function isOptionalString(v) { return v == null || v is string; }
     function isNonEmptyString(v) { return v is string && v.size() > 0; }
@@ -129,6 +143,36 @@ service cloud.firestore {
       return requiredOk && ratingOk && commentOk;
     }
 
+    // ---------------- Shop order validation ----------------
+    function shopOrderDataValid(d) {
+      let ownerOk =
+        isNonEmptyString(d.customerId) &&
+        d.customerId == request.auth.uid &&
+        (d.userId == null || d.userId == request.auth.uid);
+
+      let requiredOk =
+        isNonEmptyString(d.itemId) &&
+        isNonEmptyString(d.itemName) &&
+        (isNonEmptyString(d.categoryName) || isNonEmptyString(d.category));
+
+      let amountOk =
+        d.quantity is number && d.quantity > 0 &&
+        d.unitPrice is number && d.unitPrice >= 0 &&
+        d.totalAmount is number && d.totalAmount >= 0;
+
+      let optionalOk =
+        isOptionalString(d.paymentId) &&
+        isOptionalString(d.paymentMethod) &&
+        isOptionalString(d.orderStatus) &&
+        isOptionalString(d.currency) &&
+        isOptionalString(d.customerEmail) &&
+        isOptionalString(d.itemImageUrl) &&
+        isOptionalTimestamp(d.createdAt) &&
+        isOptionalNumber(d.createdAtLocalMs);
+
+      return ownerOk && requiredOk && amountOk && optionalOk;
+    }
+
     // ---------------- categories ----------------
     match /categories/{categoryId} {
       allow read: if true;
@@ -157,6 +201,39 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow create, update, delete: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Customer-scoped shop orders (fallback path used by app)
+      match /shopOrders/{orderId} {
+        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+        allow create: if isSignedIn() &&
+                      request.auth.uid == userId &&
+                      shopOrderDataValid(request.resource.data);
+        allow update: if isSignedIn() &&
+                      (request.auth.uid == userId || isAdmin() || isShopManager());
+        allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+    }
+
+    // ---------------- shop login collection ----------------
+    match /shop/{shopId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // ---------------- shopOrders (global) ----------------
+    match /shopOrders/{orderId} {
+      allow read: if isSignedIn() &&
+                  (resource.data.customerId == request.auth.uid ||
+                   resource.data.userId == request.auth.uid ||
+                   isAdmin() ||
+                   isShopManager());
+
+      allow create: if isSignedIn() &&
+                    shopOrderDataValid(request.resource.data);
+
+      // Current app flow only needs create/read. Keep updates strict.
+      allow update: if isSignedIn() && (isAdmin() || isShopManager());
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     // ---------------- services ----------------
