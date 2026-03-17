@@ -47,6 +47,11 @@ dependencies {
 }
 
 configurations.all {
+    resolutionStrategy {
+        // Keep AndroidX Core compatible with current AGP (8.7.3).
+        force("androidx.core:core-ktx:1.15.0")
+        force("androidx.core:core:1.15.0")
+    }
     exclude(group = "com.google.firebase", module = "firebase-iid")
 }
 

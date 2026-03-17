@@ -7,6 +7,8 @@ import 'package:serviceprovider/login_screen.dart';
 import 'package:serviceprovider/dashboards/manage_approved_providers_screen.dart';
 import 'package:serviceprovider/dashboards/manage_services_screen.dart';
 import 'package:serviceprovider/dashboards/manage_categories_screen.dart';
+import 'package:serviceprovider/dashboards/shop_manager_dashboard.dart';
+import 'package:serviceprovider/shop_catalog_store.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -16,6 +18,14 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
+  int _totalShopItems(List<ShopCategory> categories) {
+    int total = 0;
+    for (final category in categories) {
+      total += category.items.length;
+    }
+    return total;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,6 +70,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
             const SizedBox(height: 16),
             _buildManageServicesCard(context),
             const SizedBox(height: 24),
+            _buildSectionTitle("Shop Management"),
+            const SizedBox(height: 16),
+            _buildManageShopCard(context),
+            const SizedBox(height: 16),
+            _buildManageShopOrdersCard(context),
+            const SizedBox(height: 24),
             _buildSectionTitle("Platform Overview"),
             const SizedBox(height: 16),
             _buildKpiGrid(),
@@ -88,10 +104,34 @@ class _AdminDashboardState extends State<AdminDashboard> {
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       children: const [
-        _KpiCard(title: 'Total Revenue', value: "1", icon: FontAwesomeIcons.indianRupeeSign, color1: Color(0xFF26A69A), color2: Color(0xFF00796B)),
-        _KpiCard(title: 'Total Users', value: "2", icon: FontAwesomeIcons.users, color1: Color(0xFF42A5F5), color2: Color(0xFF1E88E5)),
-        _KpiCard(title: 'Service Providers', value: "3", icon: FontAwesomeIcons.userTie, color1: Color(0xFFFFA726), color2: Color(0xFFFB8C00)),
-        _KpiCard(title: 'Live Bookings', value: "1", icon: FontAwesomeIcons.solidCalendarCheck, color1: Color(0xFFAB47BC), color2: Color(0xFF8E24AA)),
+        _KpiCard(
+          title: 'Total Revenue',
+          value: "1",
+          icon: FontAwesomeIcons.indianRupeeSign,
+          color1: Color(0xFF26A69A),
+          color2: Color(0xFF00796B),
+        ),
+        _KpiCard(
+          title: 'Total Users',
+          value: "2",
+          icon: FontAwesomeIcons.users,
+          color1: Color(0xFF42A5F5),
+          color2: Color(0xFF1E88E5),
+        ),
+        _KpiCard(
+          title: 'Service Providers',
+          value: "3",
+          icon: FontAwesomeIcons.userTie,
+          color1: Color(0xFFFFA726),
+          color2: Color(0xFFFB8C00),
+        ),
+        _KpiCard(
+          title: 'Live Bookings',
+          value: "1",
+          icon: FontAwesomeIcons.solidCalendarCheck,
+          color1: Color(0xFFAB47BC),
+          color2: Color(0xFF8E24AA),
+        ),
       ],
     );
   }
@@ -116,7 +156,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const ProviderVerificationScreen()),
+              MaterialPageRoute(
+                builder: (_) => const ProviderVerificationScreen(),
+              ),
             );
           },
         );
@@ -142,7 +184,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => ManageApprovedProvidersScreen()),
+              MaterialPageRoute(
+                builder: (_) => ManageApprovedProvidersScreen(),
+              ),
             );
           },
         );
@@ -193,6 +237,73 @@ class _AdminDashboardState extends State<AdminDashboard> {
       },
     );
   }
+
+  Widget _buildManageShopCard(BuildContext context) {
+    return ValueListenableBuilder<List<ShopCategory>>(
+      valueListenable: ShopCatalogStore.instance.categoriesNotifier,
+      builder: (context, categories, _) {
+        final int categoryCount = categories.length;
+        final int itemCount = _totalShopItems(categories);
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('shopOrders')
+              .snapshots(),
+          builder: (context, snapshot) {
+            final int orderCount = snapshot.data?.docs.length ?? 0;
+            return ActionCard(
+              title: 'Manage Shop Catalog',
+              subtitle:
+                  '$categoryCount categories • $itemCount items • $orderCount orders',
+              icon: FontAwesomeIcons.store,
+              count: itemCount,
+              iconColor: Colors.deepPurple,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ShopManagerDashboard(),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildManageShopOrdersCard(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('shopOrders').snapshots(),
+      builder: (context, snapshot) {
+        final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+            snapshot.data?.docs ?? const [];
+        final int total = docs.length;
+        final int active = docs.where((doc) {
+          final String status =
+              ((doc.data()['deliveryStatus'] ?? doc.data()['orderStatus'])
+                          as String? ??
+                      '')
+                  .toLowerCase();
+          return status != 'delivered';
+        }).length;
+
+        return ActionCard(
+          title: 'Manage Shop Orders',
+          subtitle: '$total total orders • $active active',
+          icon: FontAwesomeIcons.boxOpen,
+          count: active,
+          iconColor: Colors.blueAccent,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ShopManagerDashboard()),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class ActionCard extends StatelessWidget {
@@ -237,22 +348,37 @@ class ActionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                    Text(
+                      subtitle,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
                   ],
                 ),
               ),
               if (count > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: iconColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     count.toString(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
             ],
@@ -304,7 +430,11 @@ class _KpiCard extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.topRight,
-              child: FaIcon(icon, size: 28, color: Colors.white.withOpacity(0.8)),
+              child: FaIcon(
+                icon,
+                size: 28,
+                color: Colors.white.withOpacity(0.8),
+              ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +450,10 @@ class _KpiCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   title,
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),

@@ -54,7 +54,8 @@ class _RateAndReviewScreenState extends State<RateAndReviewScreen> {
   }
 
   Future<void> _submit() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
     if (uid == null) return;
     if (_rating <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a rating')));
@@ -63,43 +64,77 @@ class _RateAndReviewScreenState extends State<RateAndReviewScreen> {
     setState(() => _submitting = true);
 
     try {
-      // Prevent duplicate by unique composite doc: requestId+customerId
-      final docId = '${widget.requestId}_$uid';
-      final reviewRef = FirebaseFirestore.instance.collection('serviceReviews').doc(docId);
-      await reviewRef.set({
-        'requestId': widget.requestId,
-        'providerId': widget.providerId,
-        'customerId': uid,
-        'serviceName': widget.serviceName,
-        'rating': _rating,
-        'comment': _commentCtrl.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // Mark on serviceRequests to indicate reviewed
-      await FirebaseFirestore.instance.collection('serviceRequests').doc(widget.requestId).set({
-        'reviewedAt': FieldValue.serverTimestamp(),
-        'reviewBy': uid,
-      }, SetOptions(merge: true));
-
-      // After saving the review, update the corresponding service's aggregate rating.
+      // Resolve canonical request data (provider/service IDs) from serviceRequests.
+      Map<String, dynamic>? requestData;
       try {
-        // 1. Find the underlying serviceId for this request.
         final reqSnap = await FirebaseFirestore.instance
             .collection('serviceRequests')
             .doc(widget.requestId)
             .get();
-        final reqData = reqSnap.data() as Map<String, dynamic>?;
-        final String? serviceId = reqData != null ? reqData['serviceId'] as String? : null;
+        requestData = reqSnap.data();
+      } catch (_) {}
 
-        if (serviceId != null && serviceId.isNotEmpty) {
-          // 2. Ensure each review knows which service it belongs to.
-          await reviewRef.set({
-            'serviceId': serviceId,
-          }, SetOptions(merge: true));
+      final String providerFromRequest = (requestData?['providerId'] as String? ?? '').trim();
+      final String serviceNameFromRequest = (requestData?['serviceName'] as String? ?? '').trim();
+      final String serviceIdFromRequest = (requestData?['serviceId'] as String? ?? '').trim();
+      final String resolvedProviderId =
+          providerFromRequest.isNotEmpty ? providerFromRequest : widget.providerId.trim();
+      final String resolvedServiceName =
+          serviceNameFromRequest.isNotEmpty ? serviceNameFromRequest : widget.serviceName.trim();
 
-          // 3. Recompute average rating and count for this service.
+      if (resolvedProviderId.isEmpty) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Provider information missing for this request.',
+        );
+      }
+
+      final Map<String, dynamic> payload = {
+        'requestId': widget.requestId,
+        'providerId': resolvedProviderId,
+        'customerId': uid,
+        'serviceName': resolvedServiceName,
+        'rating': _rating,
+        'comment': _commentCtrl.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      final String displayName = (user?.displayName ?? '').trim();
+      if (displayName.isNotEmpty) {
+        payload['customerName'] = displayName;
+      }
+      if (serviceIdFromRequest.isNotEmpty) {
+        payload['serviceId'] = serviceIdFromRequest;
+      }
+
+      // Primary deterministic write. If blocked due legacy conflicting doc,
+      // fallback to a new doc so customer feedback is not lost.
+      final reviewsCol = FirebaseFirestore.instance.collection('serviceReviews');
+      DocumentReference<Map<String, dynamic>> reviewRef =
+          reviewsCol.doc('${widget.requestId}_$uid');
+      try {
+        await reviewRef.set(payload, SetOptions(merge: true));
+      } on FirebaseException catch (e) {
+        if (e.code != 'permission-denied') rethrow;
+        reviewRef = reviewsCol.doc();
+        await reviewRef.set(payload);
+      }
+
+      // Best-effort flag on serviceRequests. Do not fail review submission
+      // if this doc is missing or the current user cannot update it.
+      try {
+        await FirebaseFirestore.instance.collection('serviceRequests').doc(widget.requestId).update({
+          'reviewedAt': FieldValue.serverTimestamp(),
+          'reviewBy': uid,
+        });
+      } catch (_) {}
+
+      // After saving the review, update the corresponding service's aggregate rating.
+      try {
+        final String serviceId = serviceIdFromRequest;
+        if (serviceId.isNotEmpty) {
+          // Recompute average rating and count for this service.
           final reviewsSnap = await FirebaseFirestore.instance
               .collection('serviceReviews')
               .where('serviceId', isEqualTo: serviceId)
@@ -134,6 +169,13 @@ class _RateAndReviewScreenState extends State<RateAndReviewScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thanks for your feedback!')));
       Navigator.of(context).pop(true);
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        final String message = e.code == 'permission-denied'
+            ? 'Failed to submit review: permission denied. Please deploy latest Firestore rules for serviceReviews.'
+            : 'Failed to submit review: ${e.message ?? e.code}';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to submit review: $e')));

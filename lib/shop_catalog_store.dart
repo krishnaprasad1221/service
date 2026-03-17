@@ -1,12 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class ShopCatalogStore {
-  ShopCatalogStore._();
+  ShopCatalogStore._() {
+    _warmUpOnlineCategoryImages();
+    _warmUpOnlineItemImages();
+  }
 
   static final ShopCatalogStore instance = ShopCatalogStore._();
 
   final ValueNotifier<List<ShopCategory>> categoriesNotifier =
       ValueNotifier<List<ShopCategory>>(_initialCategories);
+  final Map<String, Future<String?>> _pendingImageLookups =
+      <String, Future<String?>>{};
 
   static final List<ShopCategory> _initialCategories = <ShopCategory>[
     ShopCategory(
@@ -69,11 +77,7 @@ class ShopCatalogStore {
         ShopItem(id: 'spanner_set', name: 'Spanner Set', price: 980),
         ShopItem(id: 'allen_key_set', name: 'Allen Key Set', price: 450),
         ShopItem(id: 'tool_kit_box', name: 'Tool Kit Box', price: 1100),
-        ShopItem(
-          id: 'insulated_gloves',
-          name: 'Insulated Gloves',
-          price: 300,
-        ),
+        ShopItem(id: 'insulated_gloves', name: 'Insulated Gloves', price: 300),
         ShopItem(id: 'safety_goggles', name: 'Safety Goggles', price: 250),
       ],
     ),
@@ -218,11 +222,7 @@ class ShopCatalogStore {
         ShopItem(id: 'mobile_charger', name: 'Mobile Charger', price: 500),
         ShopItem(id: 'fast_charger', name: 'Fast Charger', price: 850),
         ShopItem(id: 'usb_cable_2', name: 'USB Cable', price: 220),
-        ShopItem(
-          id: 'wireless_charger',
-          name: 'Wireless Charger',
-          price: 1400,
-        ),
+        ShopItem(id: 'wireless_charger', name: 'Wireless Charger', price: 1400),
         ShopItem(id: 'phone_case', name: 'Phone Case', price: 350),
         ShopItem(id: 'screen_protector', name: 'Screen Protector', price: 250),
         ShopItem(id: 'earbuds_2', name: 'Earbuds', price: 2100),
@@ -337,10 +337,286 @@ class ShopCatalogStore {
     ),
   ];
 
+  Future<void> _warmUpOnlineItemImages() async {
+    final List<ShopCategory> snapshot = <ShopCategory>[
+      ...categoriesNotifier.value,
+    ];
+    for (final category in snapshot) {
+      for (final item in category.items) {
+        final String currentUrl = (item.imageUrl ?? '').trim();
+        if (currentUrl.isNotEmpty) continue;
+        final String? onlineUrl = await _resolveOnlineImageUrl(
+          itemId: item.id,
+          itemName: item.name,
+          categoryName: category.name,
+        );
+        if (onlineUrl == null || onlineUrl.trim().isEmpty) continue;
+        _applyImageUrl(
+          categoryId: category.id,
+          itemId: item.id,
+          imageUrl: onlineUrl,
+        );
+      }
+    }
+  }
+
+  Future<void> _warmUpOnlineCategoryImages() async {
+    final List<ShopCategory> snapshot = <ShopCategory>[
+      ...categoriesNotifier.value,
+    ];
+    for (final category in snapshot) {
+      final String currentUrl = (category.imageUrl ?? '').trim();
+      if (currentUrl.isNotEmpty) continue;
+      final String? onlineUrl = await _resolveOnlineCategoryImageUrl(
+        categoryId: category.id,
+        categoryName: category.name,
+      );
+      if (onlineUrl == null || onlineUrl.trim().isEmpty) continue;
+      _applyCategoryImageUrl(categoryId: category.id, imageUrl: onlineUrl);
+    }
+  }
+
+  Future<String?> _resolveOnlineImageUrl({
+    required String itemId,
+    required String itemName,
+    required String categoryName,
+  }) {
+    final String key = '$categoryName::$itemId';
+    final Future<String?>? cached = _pendingImageLookups[key];
+    if (cached != null) {
+      return cached;
+    }
+    final Future<String?> lookup = _fetchWikimediaThumbnail(
+      itemName: itemName,
+      categoryName: categoryName,
+    );
+    _pendingImageLookups[key] = lookup;
+    return lookup.whenComplete(() => _pendingImageLookups.remove(key));
+  }
+
+  Future<String?> _resolveOnlineCategoryImageUrl({
+    required String categoryId,
+    required String categoryName,
+  }) {
+    final String key = 'category::$categoryId';
+    final Future<String?>? cached = _pendingImageLookups[key];
+    if (cached != null) {
+      return cached;
+    }
+    final Future<String?> lookup = () async {
+      final String? title = _categoryWikiTitleById[categoryId];
+      if (title != null) {
+        final String? bySummary = await _fetchWikipediaSummaryThumbnail(title);
+        if (bySummary != null && bySummary.trim().isNotEmpty) {
+          return bySummary.trim();
+        }
+      }
+      final String? bySearch = await _fetchWikimediaThumbnailFromQueries(
+        _categoryImageQueries(categoryName),
+      );
+      if (bySearch != null && bySearch.trim().isNotEmpty) {
+        return bySearch.trim();
+      }
+      return _onlineCategoryKeywordImageUrl(categoryName);
+    }();
+    _pendingImageLookups[key] = lookup;
+    return lookup.whenComplete(() => _pendingImageLookups.remove(key));
+  }
+
+  Future<String?> _fetchWikimediaThumbnail({
+    required String itemName,
+    required String categoryName,
+  }) async {
+    final List<String> queries = _imageQueries(itemName, categoryName);
+    return _fetchWikimediaThumbnailFromQueries(queries);
+  }
+
+  Future<String?> _fetchWikimediaThumbnailFromQueries(
+    List<String> queries,
+  ) async {
+    for (final q in queries) {
+      final Uri uri = Uri.https('en.wikipedia.org', '/w/api.php', {
+        'action': 'query',
+        'format': 'json',
+        'generator': 'search',
+        'gsrsearch': q,
+        'gsrlimit': '1',
+        'prop': 'pageimages',
+        'piprop': 'thumbnail',
+        'pithumbsize': '700',
+        'origin': '*',
+      });
+      try {
+        final http.Response res = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 7));
+        if (res.statusCode != 200) continue;
+        final dynamic decoded = jsonDecode(res.body);
+        if (decoded is! Map<String, dynamic>) continue;
+        final dynamic query = decoded['query'];
+        if (query is! Map<String, dynamic>) continue;
+        final dynamic pages = query['pages'];
+        if (pages is! Map<String, dynamic> || pages.isEmpty) continue;
+        for (final dynamic raw in pages.values) {
+          if (raw is! Map<String, dynamic>) continue;
+          final dynamic thumbnail = raw['thumbnail'];
+          if (thumbnail is! Map<String, dynamic>) continue;
+          final dynamic source = thumbnail['source'];
+          if (source is String && source.trim().isNotEmpty) {
+            return source.trim();
+          }
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<String?> _fetchWikipediaSummaryThumbnail(String title) async {
+    final Uri uri = Uri.parse(
+      'https://en.wikipedia.org/api/rest_v1/page/summary/'
+      '${Uri.encodeComponent(title)}',
+    );
+    try {
+      final http.Response res = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 7));
+      if (res.statusCode != 200) return null;
+      final dynamic decoded = jsonDecode(res.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final dynamic thumbnail = decoded['thumbnail'];
+      if (thumbnail is! Map<String, dynamic>) return null;
+      final dynamic source = thumbnail['source'];
+      if (source is String && source.trim().isNotEmpty) {
+        return source.trim();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  List<String> _imageQueries(String itemName, String categoryName) {
+    final String normalized = itemName.trim();
+    final String lower = normalized.toLowerCase();
+    final List<String> out = <String>[
+      '$normalized $categoryName product',
+      '$normalized appliance',
+      '$normalized electronics',
+      normalized,
+    ];
+
+    if (lower == 'mcb') {
+      out.insert(0, 'Miniature circuit breaker');
+    } else if (lower == 'elcb') {
+      out.insert(0, 'Earth leakage circuit breaker');
+    } else if (lower == 'dvr' || lower.contains('security dvr')) {
+      out.insert(0, 'Digital video recorder CCTV');
+    } else if (lower.contains('ac ')) {
+      out.insert(0, 'Air conditioner spare part');
+    } else if (lower.contains('usb')) {
+      out.insert(0, 'USB accessory');
+    } else if (lower.contains('smart')) {
+      out.insert(0, 'Smart home device');
+    }
+    return out;
+  }
+
+  List<String> _categoryImageQueries(String categoryName) {
+    final String normalized = categoryName.trim();
+    final String lower = normalized.toLowerCase();
+    final List<String> out = <String>[
+      '$normalized electronics category',
+      '$normalized tools category',
+      '$normalized devices',
+      normalized,
+    ];
+
+    if (lower.contains('electrical')) {
+      out.insert(0, 'Electrical components');
+    } else if (lower.contains('repair')) {
+      out.insert(0, 'Repair tools');
+    } else if (lower.contains('smart')) {
+      out.insert(0, 'Smart home devices');
+    } else if (lower.contains('automation')) {
+      out.insert(0, 'Home automation');
+    } else if (lower.contains('security')) {
+      out.insert(0, 'Home security system');
+    } else if (lower.contains('audio')) {
+      out.insert(0, 'Audio equipment');
+    }
+    return out;
+  }
+
+  static const Map<String, String> _categoryWikiTitleById = <String, String>{
+    'electrical_components': 'Electrical wiring',
+    'repair_tools': 'Hand tool',
+    'smart_devices': 'Smart home',
+    'maintenance_products': 'Cleaning agent',
+    'accessories': 'Electronic component',
+    'computer_accessories': 'Computer peripheral',
+    'mobile_accessories': 'Mobile phone accessories',
+    'lighting_equipment': 'Lighting',
+    'home_security_devices': 'Home security',
+    'home_automation': 'Home automation',
+    'audio_devices': 'Audio equipment',
+  };
+
+  String _onlineCategoryKeywordImageUrl(String categoryName) {
+    final String key = categoryName.toLowerCase().trim().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      ',',
+    );
+    return 'https://loremflickr.com/700/700/$key,electronics';
+  }
+
+  void _applyImageUrl({
+    required String categoryId,
+    required String itemId,
+    required String imageUrl,
+  }) {
+    bool changed = false;
+    final List<ShopCategory> updated = categoriesNotifier.value
+        .map((category) {
+          if (category.id != categoryId) return category;
+          final List<ShopItem> items = category.items
+              .map((item) {
+                if (item.id != itemId) return item;
+                final String existing = (item.imageUrl ?? '').trim();
+                if (existing.isNotEmpty) return item;
+                changed = true;
+                return item.copyWith(imageUrl: imageUrl);
+              })
+              .toList(growable: false);
+          return category.copyWith(items: items);
+        })
+        .toList(growable: false);
+    if (changed) {
+      categoriesNotifier.value = updated;
+    }
+  }
+
+  void _applyCategoryImageUrl({
+    required String categoryId,
+    required String imageUrl,
+  }) {
+    bool changed = false;
+    final List<ShopCategory> updated = categoriesNotifier.value
+        .map((category) {
+          if (category.id != categoryId) return category;
+          final String existing = (category.imageUrl ?? '').trim();
+          if (existing.isNotEmpty) return category;
+          changed = true;
+          return category.copyWith(imageUrl: imageUrl);
+        })
+        .toList(growable: false);
+    if (changed) {
+      categoriesNotifier.value = updated;
+    }
+  }
+
   void addCategory({
     required String name,
     IconData icon = Icons.storefront_rounded,
     Color accentColor = Colors.deepPurple,
+    String? imageUrl,
   }) {
     final String trimmed = name.trim();
     if (trimmed.isEmpty) return;
@@ -350,9 +626,22 @@ class ShopCatalogStore {
       name: trimmed,
       icon: icon,
       accentColor: accentColor,
+      imageUrl: imageUrl,
       items: const <ShopItem>[],
     );
-    categoriesNotifier.value = <ShopCategory>[...categoriesNotifier.value, category];
+    categoriesNotifier.value = <ShopCategory>[
+      ...categoriesNotifier.value,
+      category,
+    ];
+    if ((imageUrl ?? '').trim().isEmpty) {
+      _resolveOnlineCategoryImageUrl(
+        categoryId: id,
+        categoryName: trimmed,
+      ).then((url) {
+        if (url == null || url.trim().isEmpty) return;
+        _applyCategoryImageUrl(categoryId: id, imageUrl: url);
+      });
+    }
   }
 
   void removeCategory(String categoryId) {
@@ -369,6 +658,17 @@ class ShopCatalogStore {
     String? brand,
     String? about,
     String? model,
+    String? modelNumber,
+    String? itemType,
+    String? shade,
+    String? material,
+    String? packOf,
+    String? deliveryLocation,
+    int? deliveryWorkingDays,
+    String? aboutSeller,
+    double? overallRating,
+    double? productQuality,
+    double? serviceQuality,
     String? warranty,
     String? suitableFor,
     List<String>? highlights,
@@ -383,6 +683,17 @@ class ShopCatalogStore {
       brand: brand,
       about: about,
       model: model,
+      modelNumber: modelNumber,
+      itemType: itemType,
+      shade: shade,
+      material: material,
+      packOf: packOf,
+      deliveryLocation: deliveryLocation,
+      deliveryWorkingDays: deliveryWorkingDays,
+      aboutSeller: aboutSeller,
+      overallRating: overallRating,
+      productQuality: productQuality,
+      serviceQuality: serviceQuality,
       warranty: warranty,
       suitableFor: suitableFor,
       highlights: highlights ?? const <String>[],
@@ -391,12 +702,19 @@ class ShopCatalogStore {
       if (category.id != categoryId) return category;
       return category.copyWith(items: <ShopItem>[...category.items, item]);
     }).toList();
+    if ((item.imageUrl ?? '').trim().isEmpty) {
+      _resolveOnlineImageUrl(
+        itemId: item.id,
+        itemName: item.name,
+        categoryName: _categoryNameById(categoryId),
+      ).then((url) {
+        if (url == null || url.trim().isEmpty) return;
+        _applyImageUrl(categoryId: categoryId, itemId: item.id, imageUrl: url);
+      });
+    }
   }
 
-  void removeItem({
-    required String categoryId,
-    required String itemId,
-  }) {
+  void removeItem({required String categoryId, required String itemId}) {
     categoriesNotifier.value = categoriesNotifier.value.map((category) {
       if (category.id != categoryId) return category;
       return category.copyWith(
@@ -406,8 +724,18 @@ class ShopCatalogStore {
   }
 
   static String _buildId(String source) {
-    final String base = source.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final String base = source.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      '_',
+    );
     return '${base}_${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  String _categoryNameById(String categoryId) {
+    for (final category in categoriesNotifier.value) {
+      if (category.id == categoryId) return category.name;
+    }
+    return 'Electronics';
   }
 }
 
@@ -416,6 +744,7 @@ class ShopCategory {
   final String name;
   final IconData icon;
   final Color accentColor;
+  final String? imageUrl;
   final List<ShopItem> items;
 
   const ShopCategory({
@@ -423,6 +752,7 @@ class ShopCategory {
     required this.name,
     required this.icon,
     required this.accentColor,
+    this.imageUrl,
     required this.items,
   });
 
@@ -431,6 +761,7 @@ class ShopCategory {
     String? name,
     IconData? icon,
     Color? accentColor,
+    String? imageUrl,
     List<ShopItem>? items,
   }) {
     return ShopCategory(
@@ -438,8 +769,20 @@ class ShopCategory {
       name: name ?? this.name,
       icon: icon ?? this.icon,
       accentColor: accentColor ?? this.accentColor,
+      imageUrl: imageUrl ?? this.imageUrl,
       items: items ?? this.items,
     );
+  }
+
+  String get effectiveImageUrl {
+    if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
+      return imageUrl!.trim();
+    }
+    final String key = name.toLowerCase().trim().replaceAll(
+      RegExp(r'[^a-z0-9]+'),
+      ',',
+    );
+    return 'https://loremflickr.com/700/700/$key,electronics';
   }
 }
 
@@ -451,6 +794,17 @@ class ShopItem {
   final String? brand;
   final String? about;
   final String? model;
+  final String? modelNumber;
+  final String? itemType;
+  final String? shade;
+  final String? material;
+  final String? packOf;
+  final String? deliveryLocation;
+  final int? deliveryWorkingDays;
+  final String? aboutSeller;
+  final double? overallRating;
+  final double? productQuality;
+  final double? serviceQuality;
   final String? warranty;
   final String? suitableFor;
   final List<String> highlights;
@@ -485,43 +839,255 @@ class ShopItem {
     this.brand,
     this.about,
     this.model,
+    this.modelNumber,
+    this.itemType,
+    this.shade,
+    this.material,
+    this.packOf,
+    this.deliveryLocation,
+    this.deliveryWorkingDays,
+    this.aboutSeller,
+    this.overallRating,
+    this.productQuality,
+    this.serviceQuality,
     this.warranty,
     this.suitableFor,
     this.highlights = const <String>[],
   });
 
+  ShopItem copyWith({
+    String? id,
+    String? name,
+    int? price,
+    String? imageUrl,
+    String? brand,
+    String? about,
+    String? model,
+    String? modelNumber,
+    String? itemType,
+    String? shade,
+    String? material,
+    String? packOf,
+    String? deliveryLocation,
+    int? deliveryWorkingDays,
+    String? aboutSeller,
+    double? overallRating,
+    double? productQuality,
+    double? serviceQuality,
+    String? warranty,
+    String? suitableFor,
+    List<String>? highlights,
+  }) {
+    return ShopItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      imageUrl: imageUrl ?? this.imageUrl,
+      brand: brand ?? this.brand,
+      about: about ?? this.about,
+      model: model ?? this.model,
+      modelNumber: modelNumber ?? this.modelNumber,
+      itemType: itemType ?? this.itemType,
+      shade: shade ?? this.shade,
+      material: material ?? this.material,
+      packOf: packOf ?? this.packOf,
+      deliveryLocation: deliveryLocation ?? this.deliveryLocation,
+      deliveryWorkingDays: deliveryWorkingDays ?? this.deliveryWorkingDays,
+      aboutSeller: aboutSeller ?? this.aboutSeller,
+      overallRating: overallRating ?? this.overallRating,
+      productQuality: productQuality ?? this.productQuality,
+      serviceQuality: serviceQuality ?? this.serviceQuality,
+      warranty: warranty ?? this.warranty,
+      suitableFor: suitableFor ?? this.suitableFor,
+      highlights: highlights ?? this.highlights,
+    );
+  }
+
   String get effectiveImageUrl {
     if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
       return imageUrl!.trim();
     }
-    final query = name.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ',');
-    return 'https://source.unsplash.com/600x600/?$query,electronics,device,tool,accessory';
+    final String placeholder = Uri.encodeComponent(name.trim());
+    return 'https://placehold.co/700x700/png?text=$placeholder';
   }
 
   String get displayBrand {
     final String? provided = _clean(brand);
-    if (provided != null) return provided;
+    if (provided != null) {
+      return provided;
+    }
 
     final String lower = name.toLowerCase();
     for (final entry in _brandHints.entries) {
-      if (lower.contains(entry.key)) return entry.value;
+      if (lower.contains(entry.key)) {
+        return entry.value;
+      }
     }
     return 'ServeZ Select';
   }
 
   String get displayModel {
     final String? provided = _clean(model);
-    if (provided != null) return provided;
-    final String compact =
-        name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
-    final String seed =
-        compact.length >= 4 ? compact.substring(0, 4) : compact.padRight(4, 'X');
+    if (provided != null) {
+      return provided;
+    }
+    final String compact = name.toUpperCase().replaceAll(
+      RegExp(r'[^A-Z0-9]'),
+      '',
+    );
+    final String seed = compact.length >= 4
+        ? compact.substring(0, 4)
+        : compact.padRight(4, 'X');
     return 'SZ-$seed-$price';
+  }
+
+  String get displayModelNumber {
+    final String? provided = _clean(modelNumber);
+    if (provided != null) {
+      return provided;
+    }
+    final String base = displayModel.replaceAll(RegExp(r'[^A-Z0-9-]'), '');
+    return '$base-MN';
+  }
+
+  String get displayType {
+    final String? provided = _clean(itemType);
+    if (provided != null) {
+      return provided;
+    }
+    final String lower = name.toLowerCase();
+    if (lower.contains('switch')) {
+      return 'Electrical Switch';
+    }
+    if (lower.contains('cable') || lower.contains('wire')) {
+      return 'Cable Accessory';
+    }
+    if (lower.contains('charger') || lower.contains('adapter')) {
+      return 'Power Accessory';
+    }
+    if (lower.contains('camera')) {
+      return 'Security Device';
+    }
+    if (lower.contains('speaker') || lower.contains('headphone')) {
+      return 'Audio Device';
+    }
+    if (lower.contains('sensor')) {
+      return 'Smart Sensor';
+    }
+    if (lower.contains('bulb') || lower.contains('light')) {
+      return 'Lighting Device';
+    }
+    if (lower.contains('drill') || lower.contains('tool')) {
+      return 'Repair Tool';
+    }
+    return 'Electronic Accessory';
+  }
+
+  String get displayShade {
+    final String? provided = _clean(shade);
+    if (provided != null) {
+      return provided;
+    }
+    final String lower = name.toLowerCase();
+    if (lower.contains('bulb') || lower.contains('light')) {
+      return 'Cool White';
+    }
+    if (lower.contains('camera') || lower.contains('security')) {
+      return 'Matte Black';
+    }
+    return 'Standard';
+  }
+
+  String get displayMaterial {
+    final String? provided = _clean(material);
+    if (provided != null) {
+      return provided;
+    }
+    final String lower = name.toLowerCase();
+    if (lower.contains('wire') || lower.contains('cable')) {
+      return 'Copper + PVC';
+    }
+    if (lower.contains('tool') ||
+        lower.contains('drill') ||
+        lower.contains('plier')) {
+      return 'Alloy Steel';
+    }
+    if (lower.contains('case') || lower.contains('holder')) {
+      return 'ABS Plastic';
+    }
+    return 'Engineering Grade Polymer';
+  }
+
+  String get displayPackOf {
+    final String? provided = _clean(packOf);
+    return provided ?? '1';
+  }
+
+  String get displayDeliveryLocation {
+    final String? provided = _clean(deliveryLocation);
+    if (provided != null) {
+      return provided;
+    }
+    const List<String> hubs = <String>[
+      'Chennai Hub',
+      'Bengaluru Hub',
+      'Hyderabad Hub',
+      'Coimbatore Hub',
+    ];
+    final int seed = _seed();
+    return hubs[seed % hubs.length];
+  }
+
+  int get displayDeliveryWorkingDays {
+    final int? provided = deliveryWorkingDays;
+    if (provided != null && provided >= 1) {
+      return provided;
+    }
+    const List<int> options = <int>[3, 4, 5, 6];
+    final int seed = _seed();
+    return options[seed % options.length];
+  }
+
+  String get displayAboutSeller {
+    final String? provided = _clean(aboutSeller);
+    if (provided != null) {
+      return provided;
+    }
+    return 'Trusted local seller with verified delivery and quality checks for every order.';
+  }
+
+  double get displayOverallRating {
+    final double? provided = overallRating;
+    if (provided != null && provided > 0) {
+      return _clampRating(provided);
+    }
+    final double seedRating = 4.1 + ((_seed() % 8) * 0.1);
+    return _clampRating(seedRating);
+  }
+
+  double get displayProductQuality {
+    final double? provided = productQuality;
+    if (provided != null && provided > 0) {
+      return _clampRating(provided);
+    }
+    final double rating = displayOverallRating + 0.1;
+    return _clampRating(rating);
+  }
+
+  double get displayServiceQuality {
+    final double? provided = serviceQuality;
+    if (provided != null && provided > 0) {
+      return _clampRating(provided);
+    }
+    final double rating = displayOverallRating - 0.1;
+    return _clampRating(rating);
   }
 
   String get displayAbout {
     final String? provided = _clean(about);
-    if (provided != null) return provided;
+    if (provided != null) {
+      return provided;
+    }
     return 'Reliable ${name.toLowerCase()} built for daily electrical, repair, and home-utility use.';
   }
 
@@ -540,8 +1106,19 @@ class ShopItem {
         .map((h) => h.trim())
         .where((h) => h.isNotEmpty)
         .toList(growable: false);
-    if (provided.isNotEmpty) return provided.take(4).toList(growable: false);
-    return _defaultHighlights();
+    final List<String> meta = <String>[
+      'Pack of ${displayPackOf}',
+      'Delivery in ${displayDeliveryWorkingDays} working days',
+      'Type: ${displayType}',
+      'Shade: ${displayShade}',
+      'Material: ${displayMaterial}',
+    ];
+    final List<String> merged = <String>[
+      ...provided,
+      ..._defaultHighlights(),
+      ...meta,
+    ];
+    return merged.take(6).toList(growable: false);
   }
 
   List<String> _defaultHighlights() {
@@ -549,16 +1126,10 @@ class ShopItem {
     final List<String> out = <String>[];
 
     if (lower.contains('wire') || lower.contains('cable')) {
-      out.addAll(<String>[
-        'Heat-resistant insulation',
-        'Stable current flow',
-      ]);
+      out.addAll(<String>['Heat-resistant insulation', 'Stable current flow']);
     }
     if (lower.contains('switch') || lower.contains('socket')) {
-      out.addAll(<String>[
-        'Easy wall-mount fit',
-        'Shock-safe contact design',
-      ]);
+      out.addAll(<String>['Easy wall-mount fit', 'Shock-safe contact design']);
     }
     if (lower.contains('battery') ||
         lower.contains('power bank') ||
@@ -600,5 +1171,15 @@ class ShopItem {
     if (value == null) return null;
     final String trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  int _seed() {
+    return id.codeUnits.fold<int>(0, (prev, e) => prev + e);
+  }
+
+  double _clampRating(double value) {
+    if (value < 0) return 0;
+    if (value > 5) return 5;
+    return value;
   }
 }

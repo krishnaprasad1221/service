@@ -44,6 +44,9 @@ class CustomerViewServiceScreen extends StatelessWidget {
               ? (data['serviceAreas'] as List).whereType<String>().toList()
               : <String>[];
           final String? terms = data['terms'] as String?;
+          final double? aggregateRating = _asDouble(data['avgRating'] ?? data['rating']);
+          final int? aggregateRatingCount =
+              (data['ratingCount'] is num) ? (data['ratingCount'] as num).toInt() : null;
 
           return CustomScrollView(
             slivers: [
@@ -98,6 +101,12 @@ class CustomerViewServiceScreen extends StatelessWidget {
                     categoryName: categoryName,
                     subCategoryNames: subCategoryNames,
                     isAvailable: isAvailable,
+                  ),
+                  _buildSectionTitle("Ratings & Reviews"),
+                  _ServiceReviewsSection(
+                    serviceId: serviceId,
+                    aggregateRating: aggregateRating,
+                    aggregateRatingCount: aggregateRatingCount,
                   ),
                   _buildSectionTitle("Description"),
                   _buildDescriptionCard(description),
@@ -763,6 +772,11 @@ class CustomerViewServiceScreen extends StatelessWidget {
     }
     return '';
   }
+
+  double? _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return null;
+  }
 }
 
 class _AvailabilityBadge extends StatelessWidget {
@@ -815,5 +829,278 @@ class _AvailabilityBadge extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _ServiceReviewsSection extends StatelessWidget {
+  final String serviceId;
+  final double? aggregateRating;
+  final int? aggregateRatingCount;
+  static final Map<String, Future<String>> _dashboardNameFutureByUid = {};
+
+  const _ServiceReviewsSection({
+    required this.serviceId,
+    required this.aggregateRating,
+    required this.aggregateRatingCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double fallbackRating = ((aggregateRating ?? 0).clamp(0, 5)).toDouble();
+    final int fallbackCount = aggregateRatingCount == null || aggregateRatingCount! < 0
+        ? 0
+        : aggregateRatingCount!;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.06),
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('serviceReviews')
+            .where('serviceId', isEqualTo: serviceId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final docs = snapshot.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+          final List<Map<String, dynamic>> reviews = docs
+              .map((d) {
+                final data = Map<String, dynamic>.from(d.data());
+                data['_docId'] = d.id;
+                return data;
+              })
+              .where((m) => _validRating(m['rating']) != null)
+              .toList();
+
+          reviews.sort((a, b) => _reviewTimeMs(b).compareTo(_reviewTimeMs(a)));
+
+          double liveAverage = 0;
+          if (reviews.isNotEmpty) {
+            final total = reviews.fold<double>(
+              0,
+              (sum, m) => sum + (_validRating(m['rating']) ?? 0),
+            );
+            liveAverage = total / reviews.length;
+          }
+
+          final bool hasLiveReviews = reviews.isNotEmpty;
+          final double shownRating = hasLiveReviews ? liveAverage : fallbackRating;
+          final int shownCount = hasLiveReviews ? reviews.length : fallbackCount;
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.star_rate_rounded, color: Colors.amber, size: 20),
+                    const SizedBox(width: 6),
+                    Text(
+                      shownCount > 0 ? shownRating.toStringAsFixed(1) : 'No ratings yet',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                    if (shownCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '($shownCount review${shownCount == 1 ? '' : 's'})',
+                        style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (shownCount > 0) _stars(shownRating),
+                if (snapshot.hasError) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Individual review details are unavailable right now.',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ] else if (snapshot.connectionState == ConnectionState.waiting && !hasLiveReviews) ...[
+                  const SizedBox(height: 12),
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ] else if (hasLiveReviews) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  ...reviews.take(4).map(_reviewTile),
+                ] else ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'No customer reviews added for this service yet.',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _reviewTile(Map<String, dynamic> review) {
+    final double rating = _validRating(review['rating']) ?? 0;
+    final String comment = ((review['comment'] as String?) ?? '').trim();
+    final String customerId = ((review['customerId'] as String?) ?? '').trim();
+    final String fallbackName = _reviewerFallbackName(review);
+    final String when = _formatTime(review['createdAt']);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FutureBuilder<String>(
+                  future: _dashboardUsernameForCustomerId(
+                    customerId,
+                    fallbackName: fallbackName,
+                  ),
+                  builder: (context, snapshot) {
+                    return Text(
+                      snapshot.data ?? fallbackName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
+                ),
+              ),
+              if (when.isNotEmpty)
+                Text(
+                  when,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _stars(rating, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                rating.toStringAsFixed(1),
+                style: TextStyle(
+                  color: Colors.amber[800],
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              comment,
+              style: TextStyle(color: Colors.grey[800], height: 1.35),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stars(double rating, {double size = 16}) {
+    final double safe = rating.clamp(0, 5).toDouble();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final star = i + 1;
+        IconData icon;
+        if (safe >= star) {
+          icon = Icons.star;
+        } else if (safe >= star - 0.5) {
+          icon = Icons.star_half;
+        } else {
+          icon = Icons.star_border;
+        }
+        return Icon(icon, color: Colors.amber, size: size);
+      }),
+    );
+  }
+
+  double? _validRating(dynamic value) {
+    if (value is! num) return null;
+    final r = value.toDouble();
+    if (r < 1 || r > 5) return null;
+    return r;
+  }
+
+  int _reviewTimeMs(Map<String, dynamic> data) {
+    final dynamic ts = data['createdAt'];
+    if (ts is Timestamp) return ts.millisecondsSinceEpoch;
+    return 0;
+  }
+
+  Future<String> _dashboardUsernameForCustomerId(
+    String customerId, {
+    required String fallbackName,
+  }) {
+    final String uid = customerId.trim();
+    final String safeFallback = _normalizedReviewerName(fallbackName);
+    if (uid.isEmpty) {
+      return Future<String>.value(safeFallback);
+    }
+
+    final existing = _dashboardNameFutureByUid[uid];
+    if (existing != null) {
+      return existing;
+    }
+
+    final future = () async {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final String username = ((doc.data()?['username'] as String?) ?? '').trim();
+        if (username.isNotEmpty) {
+          return username;
+        }
+      } catch (_) {}
+      return safeFallback;
+    }();
+
+    _dashboardNameFutureByUid[uid] = future;
+    return future;
+  }
+
+  String _normalizedReviewerName(String value) {
+    final String v = value.trim();
+    return v.isEmpty ? 'User' : v;
+  }
+
+  String _reviewerFallbackName(Map<String, dynamic> data) {
+    final String customerId = ((data['customerId'] as String?) ?? '').trim();
+    final String explicit = ((data['customerName'] as String?) ?? '').trim();
+    if (explicit.isNotEmpty && explicit != customerId) {
+      return explicit;
+    }
+    final String email = ((data['customerEmail'] as String?) ?? '').trim();
+    if (email.isNotEmpty) {
+      final int at = email.indexOf('@');
+      if (at > 0) return email.substring(0, at).trim();
+      return email;
+    }
+    return 'User';
+  }
+
+  String _formatTime(dynamic ts) {
+    if (ts is! Timestamp) return '';
+    final d = ts.toDate().toLocal();
+    final String dd = d.day.toString().padLeft(2, '0');
+    final String mm = d.month.toString().padLeft(2, '0');
+    final String yyyy = d.year.toString();
+    return '$dd/$mm/$yyyy';
   }
 }

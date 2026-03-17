@@ -841,8 +841,14 @@ class _ServiceRatingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (rating != null) {
-      return _buildStarsRow(context, rating!, ratingCount);
+    final double? safeAggregateRating = (rating is num) ? rating!.toDouble().clamp(0, 5).toDouble() : null;
+    final int? safeAggregateCount = (ratingCount is num)
+        ? (ratingCount! < 0 ? 0 : ratingCount)
+        : null;
+    if (safeAggregateRating != null && safeAggregateRating > 0) {
+      final int? visibleCount =
+          (safeAggregateCount != null && safeAggregateCount > 0) ? safeAggregateCount : null;
+      return _buildStarsRow(context, safeAggregateRating, visibleCount);
     }
 
     // Fallback: derive rating from serviceReviews collection when aggregate is missing.
